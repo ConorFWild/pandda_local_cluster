@@ -75,7 +75,7 @@ def run_local_cluster(
         params.structure_regex,
         params.reflections_regex,
         params.smiles_regex,
-        params.pruning_threshold,
+        0.0,
     )
     if params.debug:
         print(datasets)
