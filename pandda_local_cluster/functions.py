@@ -668,6 +668,11 @@ def get_distance_matrix(samples: MutableMapping[str, np.ndarray]) -> np.ndarray:
 
     correlation_matrix = np.nan_to_num(correlation_matrix)
 
+    distance_matrix = np.ones(correlation_matrix.shape) - correlation_matrix
+
+    for j in range(distance_matrix.shape[0]):
+        distance_matrix[j,j] = 0
+
     return correlation_matrix
 
 
