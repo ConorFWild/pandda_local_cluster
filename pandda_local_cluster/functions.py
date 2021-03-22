@@ -1034,7 +1034,7 @@ def save_dendrogram_plot(linkage,
                          dendrogram_plot_file,
                          ):
     fig, ax = plt.subplots(figsize=(0.2 * len(labels), 40))
-    dn = spc.dendrogram(linkage, ax=ax, labels=labels, leaf_font_size=10)
+    dn = spc.hierarchy.dendrogram(linkage, ax=ax, labels=labels, leaf_font_size=10)
     fig.savefig(str(dendrogram_plot_file))
     fig.clear()
     plt.close(fig)
