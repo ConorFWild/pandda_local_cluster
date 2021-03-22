@@ -96,9 +96,9 @@ def run_local_cluster(
         reference_dataset,
         params.structure_factors,
     )
-    if params.output_smoothed_mtzs:
-        for dtag, smoothed_dataset in smoothed_datasets.items():
-            save_mtz(smoothed_dataset.reflections, out_dir / f"{smoothed_dataset.dtag}_smoothed.mtz")
+    # if params.output_smoothed_mtzs:
+    #     for dtag, smoothed_dataset in smoothed_datasets.items():
+    #         save_mtz(smoothed_dataset.reflections, out_dir / f"{smoothed_dataset.dtag}_smoothed.mtz")
 
     # Get the markers to sample around
     markers: List[Marker] = get_markers(reference_dataset, markers)
@@ -133,8 +133,8 @@ def run_local_cluster(
             alignments,
             params.structure_factors,
             params.sample_rate,
-            int(params.grid_size / 2),
-            params.grid_spacing * 2,
+            params.grid_size,
+            params.grid_spacing,
         )
 
         # Get the distance matrix

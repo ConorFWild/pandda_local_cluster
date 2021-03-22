@@ -652,22 +652,21 @@ def get_distance_matrix(samples: MutableMapping[str, np.ndarray]) -> np.ndarray:
 
         reference_sample_mean = np.mean(reference_sample)
         reference_sample_demeaned = reference_sample - reference_sample_mean
-
         reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
 
         for y, sample in enumerate(samples.values()):
             sample_mean = np.mean(sample)
             sample_demeaned = sample - sample_mean
-
-            nominator = np.sum(reference_sample_demeaned * sample_demeaned)
-
             sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
 
+            nominator = np.sum(reference_sample_demeaned * sample_demeaned)
             denominator = sample_denominator * reference_sample_denominator
 
             correlation = nominator / denominator
 
             correlation_matrix[x, y] = correlation
+
+    correlation_matrix = np.nan_to_num(correlation_matrix)
 
     return correlation_matrix
 
