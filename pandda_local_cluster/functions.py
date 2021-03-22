@@ -1,0 +1,1158 @@
+import json
+
+# 3rd party
+import numpy as np
+import scipy
+from scipy import spatial as spsp, cluster as spc
+import pandas as pd
+import gemmi
+import joblib
+import plotly.graph_objects as go
+from matplotlib import pyplot as plt
+import hdbscan
+from scipy.cluster import hierarchy
+from sklearn import decomposition
+from sklearn import manifold
+
+# Custom
+from pandda_local_cluster.datatypes import *
+
+
+def try_make(path: Path):
+    if not path.exists():
+        os.mkdir(str(path))
+
+
+def mtz_to_path(mtz: gemmi.Mtz, out_dir: Path) -> Path:
+    return None
+
+
+def python_to_mtz(path: Path) -> gemmi.Mtz:
+    return None
+
+
+def structure_to_python(structure: gemmi.Structure, out_dir: Path) -> Path:
+    return None
+
+
+def python_to_structure(path: Path) -> gemmi.Structure:
+    return None
+
+
+def get_residue_id(model: gemmi.Model, chain: gemmi.Chain, insertion: str):
+    return ResidueID(model.name, chain.name, str(insertion))
+
+
+def get_residue(structure: gemmi.Structure, residue_id: ResidueID) -> gemmi.Residue:
+    return structure[residue_id.model][residue_id.chain][residue_id.insertion][0]
+
+
+def get_comparator_datasets(
+        linkage: np.ndarray,
+        dataset_clusters: np.ndarray,
+        dataset_index: int,
+        target_dtag: str,
+        apo_mask: np.ndarray,
+        datasets: MutableMapping[str, Dataset],
+        min_cluster_size: int,
+        num_datasets: int,
+) -> Optional[MutableMapping[str, Dataset]]:
+    #
+    apo_cluster_indexes: np.ndarray = np.unique(dataset_clusters[apo_mask])
+
+    apo_clusters: MutableMapping[int, np.ndarray] = {}
+    for apo_cluster_index in apo_cluster_indexes:
+        cluster: np.ndarray = dataset_clusters[dataset_clusters == apo_cluster_index]
+
+        #
+        if cluster.size > min_cluster_size:
+            apo_clusters[apo_cluster_index] = cluster
+
+    if len(apo_clusters) == 0:
+        return None
+
+    # Get the cophenetic distances
+    cophenetic_distances_reduced: np.ndarray = scipy.cluster.hierarchy.cophenet(linkage)
+    cophenetic_distances: np.ndarray = spsp.distance.squareform(cophenetic_distances_reduced)
+    distances_from_dataset: np.ndarray = cophenetic_distances[dataset_index, :]
+
+    # Find the closest apo cluster
+    cluster_distances: MutableMapping[int, float] = {}
+    for apo_cluster_index, apo_cluster in apo_clusters.items():
+        distances_from_cluster: np.ndarray = distances_from_dataset[dataset_clusters == apo_cluster_index]
+        mean_distance: float = np.mean(distances_from_cluster)
+        cluster_distances[apo_cluster_index] = mean_distance
+
+    # Find closest n datasets in cluster
+    closest_cluster_index: int = min(cluster_distances, key=lambda x: cluster_distances[x])
+    closest_cluster_dtag_array: np.ndarray = np.array(list(datasets.keys()))[dataset_clusters == closest_cluster_index]
+
+    # Sort by resolution
+    closest_cluster_dtag_resolutions = {dtag: datasets[dtag].reflections.resolution_high()
+                                        for dtag in closest_cluster_dtag_array}
+    print(f"Got {len(closest_cluster_dtag_resolutions)} comparatprs")
+    sorted_resolution_dtags = sorted(closest_cluster_dtag_resolutions,
+                                     key=lambda dtag: closest_cluster_dtag_resolutions[dtag])
+    resolution_cutoff = max(datasets[target_dtag].reflections.resolution_high(),
+                            datasets[sorted_resolution_dtags[
+                                min(len(sorted_resolution_dtags), num_datasets)]].reflections.resolution_high()
+                            )
+    # sorted_resolution_dtags_cutoff = [dtag for dtag in sorted_resolution_dtags if datasets[dtag].reflections.resolution_high() < resolution_cutoff]
+
+    # highest_resolution_dtags = sorted_resolution_dtags_cutoff[-min(len(sorted_resolution_dtags), num_datasets):]
+
+    closest_cluster_datasets: MutableMapping[str, Dataset] = {dtag: datasets[dtag]
+                                                              for dtag
+                                                              in closest_cluster_dtag_array
+                                                              if datasets[
+                                                                  dtag].reflections.resolution_high() < resolution_cutoff
+                                                              }
+    print(closest_cluster_datasets)
+
+    return closest_cluster_datasets
+
+
+def iterate_residues(
+        datasets: MutableMapping[str, Dataset],
+        reference: Dataset,
+        debug: bool = True,
+) -> Iterator[Tuple[ResidueID, MutableMapping[str, Dataset]]]:
+    # Get all unique ResidueIDs from all datasets
+    # Order them: Sort by model, then chain, then residue insertion
+    # yield them
+
+    reference_structure: gemmi.Structure = reference.structure
+
+    for model in reference_structure:
+        for chain in model:
+            for residue in chain.get_polymer():
+                residue_id: ResidueID = ResidueID(model.name, chain.name, str(residue.seqid.num))
+
+                residue_datasets: MutableMapping[str, Dataset] = {}
+                for dtag, dataset in datasets.items():
+                    structure: gemmi.Structure = dataset.structure
+
+                    try:
+                        res = get_residue(structure, residue_id)
+                        res_ca = res["CA"][0]
+                        residue_datasets[dtag] = dataset
+                    except Exception as e:
+                        if debug:
+                            print(e)
+                        continue
+
+                yield residue_id, residue_datasets
+
+
+def iterate_markers(
+        datasets: MutableMapping[str, Dataset],
+        markers: List[Marker],
+        debug: bool = True,
+) -> Iterator[Tuple[Marker, MutableMapping[str, Dataset]]]:
+    for marker in markers:
+        yield marker, datasets
+
+
+def get_comparator_samples(
+        sample_arrays: MutableMapping[str, np.ndarray],
+        comparator_datasets: MutableMapping[str, Dataset],
+) -> MutableMapping[str, np.ndarray]:
+    comparator_samples: MutableMapping[str, np.ndarray] = {}
+    for dtag in comparator_datasets:
+        comparator_samples[dtag] = sample_arrays[dtag]
+
+    return comparator_samples
+
+
+def get_path_from_regex(directory: Path, regex: str) -> Optional[Path]:
+    for path in directory.glob(f"{regex}"):
+        return path
+
+    else:
+        return None
+
+
+def get_structure(structure_path: Path) -> gemmi.Structure:
+    structure: gemmi.Structure = gemmi.read_structure(str(structure_path))
+    structure.setup_entities()
+    return structure
+
+
+def get_reflections(reflections_path: Path) -> gemmi.Mtz:
+    reflections: gemmi.Mtz = gemmi.read_mtz_file(str(reflections_path))
+    return reflections
+
+
+def get_dataset_from_dir(
+        directory: Path,
+        structure_regex: str,
+        reflections_regex: str,
+        smiles_regex: str,
+        pruning_threshold: float,
+        debug: bool = True,
+) -> Optional[Dataset]:
+    if debug:
+        print(f"\tChecking directoy {directory} for data...")
+
+    if directory.is_dir():
+        if debug:
+            print(
+                f"\t\t{directory} is a directory. Checking for regexes: {structure_regex}, {reflections_regex} and {smiles_regex}")
+        dtag = directory.name
+        structure_path: Optional[Path] = get_path_from_regex(directory, structure_regex)
+        reflections_path: Optional[Path] = get_path_from_regex(directory, reflections_regex)
+        smiles_path: Optional[Path] = get_path_from_regex(directory, smiles_regex)
+
+        if structure_path and reflections_path:
+
+            fragment_structures = None
+
+            dataset: Dataset = Dataset(
+                dtag=dtag,
+                structure=get_structure(structure_path),
+                reflections=get_reflections(reflections_path),
+                structure_path=structure_path,
+                reflections_path=reflections_path,
+                fragment_path=smiles_path,
+                fragment_structures=fragment_structures,
+            )
+
+            return dataset
+
+        else:
+            if debug:
+                print(f"\t\t{directory} Lacks either a structure or reflections. Skipping")
+            return None
+    else:
+        return None
+
+
+def get_datasets(
+        data_dir: Path,
+        structure_regex: str,
+        reflections_regex: str,
+        smiles_regex: str,
+        pruning_threshold: float,
+        debug: bool = True,
+) -> MutableMapping[str, Dataset]:
+    # Iterate over the paths
+    directories = list(data_dir.glob("*"))
+
+    datasets_list: List[Optional[Dataset]] = joblib.Parallel(
+        verbose=50,
+        n_jobs=-1,
+        # backend="multiprocessing",
+    )(
+        joblib.delayed(
+            get_dataset_from_dir)(
+            directory,
+            structure_regex,
+            reflections_regex,
+            smiles_regex,
+            pruning_threshold,
+            debug,
+        )
+        for directory
+        in directories
+
+    )
+
+    datasets: MutableMapping[str, Dataset] = {dataset.dtag: dataset for dataset in datasets_list if dataset is not None}
+
+    return datasets
+
+
+def truncate_resolution(reflections: gemmi.Mtz, resolution: float) -> gemmi.Mtz:
+    new_reflections = gemmi.Mtz(with_base=False)
+
+    # Set dataset properties
+    new_reflections.spacegroup = reflections.spacegroup
+    new_reflections.set_cell_for_all(reflections.cell)
+
+    # Add dataset
+    new_reflections.add_dataset("truncated")
+
+    # Add columns
+    for column in reflections.columns:
+        new_reflections.add_column(column.label, column.type)
+
+    # Get data
+    data_array = np.array(reflections, copy=True)
+    data = pd.DataFrame(data_array,
+                        columns=reflections.column_labels(),
+                        )
+    data.set_index(["H", "K", "L"], inplace=True)
+
+    # add resolutions
+    data["res"] = reflections.make_d_array()
+
+    # Truncate by resolution
+    data_truncated = data[data["res"] >= resolution]
+
+    # Rem,ove res colum
+    data_dropped = data_truncated.drop("res", "columns")
+
+    # To numpy
+    data_dropped_array = data_dropped.to_numpy()
+
+    # new data
+    new_data = np.hstack([data_dropped.index.to_frame().to_numpy(),
+                          data_dropped_array,
+                          ]
+                         )
+
+    # Update
+    new_reflections.set_data(new_data)
+
+    # Update resolution
+    new_reflections.update_reso()
+
+    return new_reflections
+
+
+def get_truncated_datasets(datasets: MutableMapping[str, Dataset],
+                           reference_dataset: Dataset,
+                           structure_factors: StructureFactors) -> MutableMapping[str, Dataset]:
+    resolution_truncated_datasets = {}
+
+    # Get the lowest common resolution
+    resolution: float = max([dataset.reflections.resolution_high() for dtag, dataset in datasets.items()])
+
+    # Truncate by common resolution
+    for dtag, dataset in datasets.items():
+        dataset_reflections: gemmi.Mtz = dataset.reflections
+        truncated_reflections: gemmi.Mtz = truncate_resolution(dataset_reflections, resolution)
+        truncated_dataset: Dataset = Dataset(dataset.dtag,
+                                             dataset.structure,
+                                             truncated_reflections,
+                                             dataset.structure_path,
+                                             dataset.reflections_path,
+                                             dataset.fragment_path,
+                                             dataset.fragment_structures,
+                                             dataset.smoothing_factor,
+                                             )
+
+        resolution_truncated_datasets[dtag] = truncated_dataset
+
+    return resolution_truncated_datasets
+
+
+def transform_from_translation_rotation(translation, rotation):
+    transform = gemmi.Transform()
+    transform.vec.fromlist(translation.tolist())
+    transform.mat.fromlist(rotation.as_matrix().tolist())
+
+    return Transform(transform)
+
+
+def get_transform_from_atoms(
+        moving_selection,
+        reference_selection,
+) -> Transform:
+    """
+    Get the transform FROM the moving TO the reference
+    :param moving_selection:
+    :param reference_selection:
+    :return:
+    """
+
+    # Get the means
+    mean_moving = np.mean(moving_selection, axis=0)
+    mean_reference = np.mean(reference_selection, axis=0)
+
+    # Het the transation FROM the moving TO the reference
+    vec = np.array(mean_reference - mean_moving)
+
+    de_meaned_moving = moving_selection - mean_moving
+    de_meaned_referecnce = reference_selection - mean_reference
+
+    rotation, rmsd = scipy.spatial.transform.Rotation.align_vectors(de_meaned_referecnce, de_meaned_moving)
+
+    return transform_from_translation_rotation(vec, rotation)
+
+
+def get_markers(
+        reference_dataset: Dataset,
+        markers: Optional[List[Tuple[float, float, float]]],
+        debug: bool = True,
+) -> List[Marker]:
+    new_markers: List[Marker] = []
+
+    if markers:
+        for marker in markers:
+            new_markers.append(
+                Marker(
+                    marker[0],
+                    marker[1],
+                    marker[2],
+                    None,
+                )
+            )
+        return new_markers
+
+    else:
+        for model in reference_dataset.structure:
+            for chain in model:
+                for ref_res in chain.get_polymer():
+                    print(f"\t\tGetting transform for residue: {ref_res}")
+
+                    # if ref_res.name.upper() not in Constants.residue_names:
+                    #     continue
+                    try:
+
+                        # Get ca pos from reference
+                        current_res_id: ResidueID = get_residue_id(model, chain, ref_res.seqid.num)
+                        reference_ca_pos = ref_res["CA"][0].pos
+                        new_markers.append(
+                            Marker(
+                                reference_ca_pos.x,
+                                reference_ca_pos.y,
+                                reference_ca_pos.z,
+                                current_res_id,
+                            )
+                        )
+
+                    except Exception as e:
+                        if debug:
+                            print(f"\t\tAlignment exception: {e}")
+                        continue
+
+        if debug:
+            print(f"Found {len(new_markers)}: {new_markers}")
+
+        return new_markers
+
+
+def get_alignment(
+        reference: Dataset,
+        dataset: Dataset,
+        markers: List[Marker],
+        debug: bool = True,
+) -> Alignment:
+    # Find the common atoms as an array
+    dataset_pos_list = []
+    reference_pos_list = []
+    for model in reference.structure:
+        for chain in model:
+            for ref_res in chain.get_polymer():
+                # if ref_res.name.upper() not in Constants.residue_names:
+                #     continue
+                try:
+
+                    # Get ca pos from reference
+                    print("Getting ref ca")
+                    current_res_id: ResidueID = get_residue_id(model, chain, ref_res.seqid.num)
+                    print(type(ref_res))
+                    print(ref_res)
+                    reference_ca_pos = ref_res["CA"][0].pos
+
+                    print("Getting dataset ca")
+                    # Get the ca pos from the dataset
+                    dataset_res = get_residue(dataset.structure, current_res_id)
+                    print(type(dataset_res))
+                    print(dataset_res)
+                    dataset_ca_pos = dataset_res["CA"][0].pos
+                except Exception as e:
+                    if debug:
+                        print(f"\t\tAlignment exception: {e}")
+                    continue
+
+                residue_id: ResidueID = get_residue_id(model, chain, ref_res.seqid.num)
+
+                dataset_res: gemmi.Residue = get_residue(dataset.structure, residue_id)
+
+                for atom_ref, atom_dataset in zip(ref_res, dataset_res):
+                    dataset_pos_list.append([atom_dataset.pos.x, atom_dataset.pos.y, atom_dataset.pos.z, ])
+                    reference_pos_list.append([atom_ref.pos.x, atom_ref.pos.y, atom_ref.pos.z, ])
+    dataset_atom_array = np.array(dataset_pos_list)
+    reference_atom_array = np.array(reference_pos_list)
+
+    if debug:
+        print(f"\t\tdataset atom array size: {dataset_atom_array.shape}")
+        print(f"\t\treference atom array size: {reference_atom_array.shape}")
+
+    # dataset kdtree
+    # dataset_tree = spsp.KDTree(dataset_atom_array)
+    reference_tree = spsp.KDTree(reference_atom_array)
+
+    # Get the transform for each
+
+    alignment: Alignment = {}
+    for marker in markers:
+        # dataset selection
+        if debug:
+            print("\t\tQuerying")
+
+        reference_indexes = reference_tree.query_ball_point(
+            [marker.x, marker.y, marker.z],
+            7.0,
+        )
+        dataset_selection = dataset_atom_array[reference_indexes]
+
+        # Reference selection
+        reference_selection = reference_atom_array[reference_indexes]
+
+        # Get transform
+        if debug:
+            print("\t\tGetting transform")
+        alignment[marker] = get_transform_from_atoms(
+            dataset_selection,
+            reference_selection,
+        )
+        if debug:
+            print(
+                (
+                    f"\t\t\tTransform is:\n"
+                    f"\t\t\t\tMat: {alignment[marker].transform.mat}\n"
+                    f"\t\t\t\tVec: {alignment[marker].transform.vec}\n"
+                )
+            )
+
+    if debug:
+        print("Returning alignment...")
+    return alignment
+
+
+def get_alignments(
+        datasets: MutableMapping[str, Dataset],
+        reference: Dataset,
+        markers: List[Marker],
+        debug: bool = True,
+) -> MutableMapping[str, Alignment]:
+    alignment_list: List[Alignment] = joblib.Parallel(
+        verbose=50,
+        n_jobs=-1,
+        # backend="multiprocessing",
+    )(
+        joblib.delayed(get_alignment)(
+            reference,
+            dataset,
+            markers,
+        )
+        for dataset
+        in list(datasets.values())
+    )
+
+    alignments: MutableMapping[str, Alignment] = {
+        dtag: alignment
+        for dtag, alignment
+        in zip(list(datasets.keys()), alignment_list)
+    }
+
+    return alignments
+
+
+def sample_dataset(
+        dataset: Dataset,
+        transform: Transform,
+        marker: Marker,
+        structure_factors: StructureFactors,
+        sample_rate: float,
+        grid_size: int,
+        grid_spacing: float,
+) -> np.ndarray:
+    reflections: gemmi.Mtz = dataset.reflections
+    unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+        structure_factors.f,
+        structure_factors.phi,
+        sample_rate=sample_rate,
+    )
+
+    unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
+
+    std = np.std(unaligned_xmap_array)
+    unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
+
+    transform_inverse = transform.transform.inverse()
+
+    # transform_vec = np.array(transform_inverse.vec.tolist())
+    transform_vec = -np.array(transform.transform.vec.tolist())
+
+    transform_mat = np.array(transform_inverse.mat.tolist()).T
+    transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
+
+    offset = np.matmul(transform_mat, np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)).flatten()
+    print(f"Offset from: {offset}")
+    print(f"transform_vec from: {transform_vec}")
+
+    offset_tranform_vec = transform_vec - offset
+    marker_offset_tranform_vec = offset_tranform_vec + np.array([marker.x, marker.y, marker.z])
+    print(f"Sampling from: {marker_offset_tranform_vec}")
+
+    tr = gemmi.Transform()
+    tr.mat.fromlist(transform_mat.tolist())
+    # transform_non_inv_mat = np.array(transform.transform.mat.tolist()).T
+    # transform_non_inv_mat = np.matmul(transform_non_inv_mat, np.eye(3) * grid_spacing)
+    # tr.mat.fromlist(transform_non_inv_mat.tolist())
+    tr.vec.fromlist(marker_offset_tranform_vec.tolist())
+
+    arr = np.zeros([grid_size, grid_size, grid_size], dtype=np.float32)
+
+    unaligned_xmap.interpolate_values(arr, tr)
+
+    return arr
+
+
+def sample_datasets(
+        truncated_datasets: MutableMapping[str, Dataset],
+        marker: Marker,
+        alignments: MutableMapping[str, Alignment],
+        structure_factors: StructureFactors,
+        sample_rate: float,
+        grid_size: int,
+        grid_spacing: float,
+) -> MutableMapping[str, np.ndarray]:
+    samples: MutableMapping[str, np.ndarray] = {}
+    arrays = joblib.Parallel(
+        verbose=50,
+        n_jobs=-1,
+        # backend="multiprocessing",
+    )(
+        joblib.delayed(sample_dataset)(
+            dataset,
+            alignments[dtag][marker],
+            marker,
+            structure_factors,
+            sample_rate,
+            grid_size,
+            grid_spacing,
+        )
+        for dtag, dataset
+        in truncated_datasets.items()
+    )
+    samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
+
+    return samples
+
+
+def get_corr(reference_sample_mask, sample_mask, diag):
+    reference_mask_size = np.sum(reference_sample_mask)
+    sample_mask_size = np.sum(sample_mask)
+
+    denominator = max(sample_mask_size, reference_mask_size)
+
+    if denominator == 0.0:
+        if diag:
+            corr = 1.0
+        else:
+            corr = 0.0
+
+    else:
+
+        corr = np.sum(sample_mask[reference_sample_mask == 1]) / denominator
+
+    return corr
+
+
+def get_distance_matrix(samples: MutableMapping[str, np.ndarray]) -> np.ndarray:
+    # Make a pairwise matrix
+    correlation_matrix = np.zeros((len(samples), len(samples)))
+
+    for x, reference_sample in enumerate(samples.values()):
+
+        reference_sample_mean = np.mean(reference_sample)
+        reference_sample_demeaned = reference_sample - reference_sample_mean
+
+        reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
+
+        for y, sample in enumerate(samples.values()):
+            sample_mean = np.mean(sample)
+            sample_demeaned = sample - sample_mean
+
+            nominator = np.sum(reference_sample_demeaned * sample_demeaned)
+
+            sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
+
+            denominator = sample_denominator * reference_sample_denominator
+
+            correlation = nominator / denominator
+
+            correlation_matrix[x, y] = correlation
+
+    return correlation_matrix
+
+
+def get_reference(datasets: MutableMapping[str, Dataset], reference_dtag: Optional[str],
+                  apo_dtags: List[str]) -> gemmi.Structure:
+    # If reference dtag given, select it
+    if reference_dtag:
+        for dtag in datasets:
+            if dtag == reference_dtag:
+                return datasets[dtag]
+
+        raise Exception("Reference dtag not in datasets!")
+
+    # Otherwise, select highest resolution structure
+    else:
+        reference_dtag = min(
+            apo_dtags,
+            key=lambda dataset_dtag: datasets[dataset_dtag].reflections.resolution_high(),
+        )
+
+        return datasets[reference_dtag]
+
+
+def get_linkage_from_correlation_matrix(correlation_matrix):
+    condensed = spsp.distance.squareform(1.0 - correlation_matrix)
+    linkage = spc.hierarchy.linkage(condensed, method='complete')
+    # linkage = spc.linkage(condensed, method='ward')
+
+    return linkage
+
+
+def cluster_linkage(linkage, cutoff):
+    idx = spc.hierarchy.fcluster(linkage, cutoff, 'distance')
+
+    return idx
+
+
+def cluster_density(linkage: np.ndarray, cutoff: float) -> np.ndarray:
+    # Get the linkage matrix
+    # Cluster the datasets
+    clusters: np.ndarray = cluster_linkage(linkage, cutoff)
+    # Determine which clusters have known apos in them
+
+    return clusters
+
+
+def get_common_reflections(
+        moving_reflections: gemmi.Mtz,
+        reference_reflections: gemmi.Mtz,
+        structure_factors: StructureFactors,
+):
+    # Get own reflections
+    moving_reflections_array = np.array(moving_reflections, copy=True)
+    moving_reflections_table = pd.DataFrame(
+        moving_reflections_array,
+        columns=moving_reflections.column_labels(),
+    )
+    moving_reflections_table.set_index(["H", "K", "L"], inplace=True)
+    dtag_flattened_index = moving_reflections_table[
+        ~moving_reflections_table[structure_factors.f].isna()].index.to_flat_index()
+
+    # Get reference
+    reference_reflections_array = np.array(reference_reflections, copy=True)
+    reference_reflections_table = pd.DataFrame(reference_reflections_array,
+                                               columns=reference_reflections.column_labels(),
+                                               )
+    reference_reflections_table.set_index(["H", "K", "L"], inplace=True)
+    reference_flattened_index = reference_reflections_table[
+        ~reference_reflections_table[structure_factors.f].isna()].index.to_flat_index()
+
+    running_index = dtag_flattened_index.intersection(reference_flattened_index)
+
+    return running_index.to_list()
+
+
+def get_all_common_reflections(datasets: MutableMapping[str, Dataset], structure_factors: StructureFactors,
+                               tol=0.000001):
+    running_index = None
+
+    for dtag, dataset in datasets.items():
+        reflections = dataset.reflections
+        reflections_array = np.array(reflections, copy=True)
+        reflections_table = pd.DataFrame(reflections_array,
+                                         columns=reflections.column_labels(),
+                                         )
+        reflections_table.set_index(["H", "K", "L"], inplace=True)
+
+        is_na = reflections_table[structure_factors.f].isna()
+        is_zero = reflections_table[structure_factors.f].abs() < tol
+        mask = ~(is_na | is_zero)
+
+        flattened_index = reflections_table[mask].index.to_flat_index()
+        if running_index is None:
+            running_index = flattened_index
+        running_index = running_index.intersection(flattened_index)
+    return running_index.to_list()
+
+
+def truncate_reflections(reflections: gemmi.Mtz, index=None) -> gemmi.Mtz:
+    new_reflections = gemmi.Mtz(with_base=False)
+
+    # Set dataset properties
+    new_reflections.spacegroup = reflections.spacegroup
+    new_reflections.set_cell_for_all(reflections.cell)
+
+    # Add dataset
+    new_reflections.add_dataset("truncated")
+
+    # Add columns
+    for column in reflections.columns:
+        new_reflections.add_column(column.label, column.type)
+
+    # Get data
+    data_array = np.array(reflections, copy=True)
+    data = pd.DataFrame(data_array,
+                        columns=reflections.column_labels(),
+                        )
+    data.set_index(["H", "K", "L"], inplace=True)
+
+    # Truncate by index
+    data_indexed = data.loc[index]
+
+    # To numpy
+    data_dropped_array = data_indexed.to_numpy()
+
+    # new data
+    new_data = np.hstack([data_indexed.index.to_frame().to_numpy(),
+                          data_dropped_array,
+                          ]
+                         )
+
+    # Update
+    new_reflections.set_data(new_data)
+
+    # Update resolution
+    new_reflections.update_reso()
+
+    return new_reflections
+
+
+def smooth(reference: Dataset, moving: Dataset, structure_factors: StructureFactors):
+    # Get common set of reflections
+    common_reflections = get_common_reflections(
+        reference.reflections,
+        moving.reflections,
+        structure_factors,
+    )
+
+    # Truncate
+    truncated_reference: gemmi.Mtz = truncate_reflections(reference.reflections, common_reflections)
+    truncated_dataset: gemmi.Mtz = truncate_reflections(moving.reflections, common_reflections)
+
+    # Refference array
+    reference_reflections: gemmi.Mtz = truncated_reference
+    reference_reflections_array: np.ndarray = np.array(reference_reflections,
+                                                       copy=True,
+                                                       )
+    reference_reflections_table = pd.DataFrame(reference_reflections_array,
+                                               columns=reference_reflections.column_labels(),
+                                               )
+    reference_f_array = reference_reflections_table[structure_factors.f].to_numpy()
+
+    # Dtag array
+    dtag_reflections = truncated_dataset
+    dtag_reflections_array = np.array(dtag_reflections,
+                                      copy=True,
+                                      )
+    dtag_reflections_table = pd.DataFrame(dtag_reflections_array,
+                                          columns=dtag_reflections.column_labels(),
+                                          )
+    dtag_f_array = dtag_reflections_table[structure_factors.f].to_numpy()
+
+    # Resolution array
+    resolution_array = reference_reflections.make_1_d2_array()
+
+    # Prepare optimisation
+    x = reference_f_array
+    y = dtag_f_array
+
+    r = resolution_array
+
+    sample_grid = np.linspace(min(r), max(r), 100)
+
+    sorting = np.argsort(r)
+    r_sorted = r[sorting]
+    x_sorted = x[sorting]
+    y_sorted = y[sorting]
+
+    scales = []
+    rmsds = []
+
+    # Approximate x_f
+    former_sample_point = sample_grid[0]
+    x_f_list = []
+    for sample_point in sample_grid[1:]:
+        mask = (r_sorted < sample_point) * (r_sorted > former_sample_point)
+        x_vals = x_sorted[mask]
+        former_sample_point = sample_point
+        x_f_list.append(np.mean(x_vals))
+    x_f = np.array(x_f_list)
+
+    # Optimise the scale factor
+    for scale in np.linspace(-10, 10, 100):
+
+        y_s_sorted = y_sorted * np.exp(scale * r_sorted)
+
+        # approximate y_f
+        former_sample_point = sample_grid[0]
+        y_f_list = []
+        for sample_point in sample_grid[1:]:
+            mask = (r_sorted < sample_point) * (r_sorted > former_sample_point)
+            y_vals = y_s_sorted[mask]
+            former_sample_point = sample_point
+            y_f_list.append(np.mean(y_vals))
+        y_f = np.array(y_f_list)
+
+        rmsd = np.sum(np.abs(x_f - y_f))
+
+        scales.append(scale)
+        rmsds.append(rmsd)
+
+    min_scale = scales[np.argmin(rmsds)]
+
+    # Get the original reflections
+    original_reflections = moving.reflections
+
+    original_reflections_array = np.array(original_reflections,
+                                          copy=True,
+                                          )
+
+    original_reflections_table = pd.DataFrame(original_reflections_array,
+                                              columns=reference_reflections.column_labels(),
+                                              )
+
+    f_array = original_reflections_table[structure_factors.f]
+
+    f_scaled_array = f_array * np.exp(min_scale * original_reflections.make_1_d2_array())
+
+    original_reflections_table[structure_factors.f] = f_scaled_array
+
+    # New reflections
+    new_reflections = gemmi.Mtz(with_base=False)
+
+    # Set dataset properties
+    new_reflections.spacegroup = original_reflections.spacegroup
+    new_reflections.set_cell_for_all(original_reflections.cell)
+
+    # Add dataset
+    new_reflections.add_dataset("scaled")
+
+    # Add columns
+    for column in original_reflections.columns:
+        new_reflections.add_column(column.label, column.type)
+
+    # Update
+    new_reflections.set_data(original_reflections_table.to_numpy())
+
+    # Update resolution
+    new_reflections.update_reso()
+
+    # Create new dataset
+    smoothed_dataset = Dataset(
+        moving.dtag,
+        moving.structure,
+        new_reflections,
+        moving.structure_path,
+        moving.reflections_path,
+        moving.fragment_path,
+        moving.fragment_structures,
+        min_scale,
+    )
+
+    return smoothed_dataset
+
+
+def smooth_datasets(
+        datasets: MutableMapping[str, Dataset],
+        reference_dataset: Dataset,
+        structure_factors: StructureFactors,
+        debug: bool = True,
+) -> MutableMapping[str, Dataset]:
+    # For dataset reflections
+    datasets_list: List[Optional[Dataset]] = joblib.Parallel(
+        verbose=50,
+        n_jobs=-1,
+    )(
+        joblib.delayed(smooth)(
+            reference_dataset, dataset, structure_factors
+        )
+        for dataset
+        in list(datasets.values())
+    )
+    smoothed_datasets = {dtag: smoothed_dataset for dtag, smoothed_dataset in zip(list(datasets.keys()), datasets_list)}
+
+    return smoothed_datasets
+
+
+def save_mtz(mtz: gemmi.Mtz, path: Path):
+    mtz.write_to_file(str(path))
+
+
+def embed(distance_matrix):
+    pca = decomposition.PCA(n_components=50)
+    tsne = manifold.TSNE(n_components=2)
+    transform = pca.fit_transform(distance_matrix)
+    transform = tsne.fit_transform(transform)
+    return transform
+
+
+def get_global_distance_matrix(clustering_dict):
+    num_datasets = len(list(clustering_dict.values())[0])
+    num_residues = len(clustering_dict)
+
+    dataset_connectivity_matrix = np.zeros((num_datasets, num_datasets))
+
+    for residue_id, residue_clustering in clustering_dict.items():
+
+        for x, cluster_index_x in enumerate(residue_clustering.values()):
+            for y, cluster_index_y in enumerate(residue_clustering.values()):
+                if cluster_index_x == cluster_index_y:
+                    dataset_connectivity_matrix[x, y] = dataset_connectivity_matrix[x, y] + 1
+
+    return dataset_connectivity_matrix / num_residues
+
+
+def save_parallel_cat_plot(clustering_dict, out_file):
+    dimensions = []
+
+    for residue_id, cluster_dict in clustering_dict.items():
+        dimensions.append(
+            {
+                "label": f"{residue_id}",
+                "values": list(cluster_dict.values()),
+            }
+        )
+
+    fig = go.Figure(
+        go.Parcats(
+            dimensions=dimensions
+        )
+    )
+
+    fig.write_image(
+        str(out_file),
+        engine="kaleido",
+        width=2000,
+        height=1000,
+        scale=1,
+    )
+
+
+def save_json(clustering_dict, path):
+    with open(str(path), "w") as f:
+        json.dump(clustering_dict, f)
+
+
+def save_dendrogram_plot(linkage,
+                         labels,
+                         dendrogram_plot_file,
+                         ):
+    fig, ax = plt.subplots(figsize=(0.2 * len(labels), 40))
+    dn = spc.dendrogram(linkage, ax=ax, labels=labels, leaf_font_size=10)
+    fig.savefig(str(dendrogram_plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_num_clusters_bar_plot(clustering_dict, plot_file):
+    dtag_list = list(list(clustering_dict.values())[0].keys())
+
+    fig, ax = plt.subplots(figsize=(0.2 * len(clustering_dict), 20))
+
+    x = np.arange(len(clustering_dict))
+    y = [np.unique([cluster_id for cluster_id in cluster_dict.values()]).size for cluster_dict in
+         clustering_dict.values()]
+    labels = [f"{residue_id}" for residue_id in clustering_dict]
+
+    plt.bar(x, y)
+    plt.xticks(x, labels, rotation='vertical', fontsize=8)
+    fig.savefig(str(plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_num_clusters_stacked_bar_plot(clustering_dict, plot_file):
+    dtag_list = list(list(clustering_dict.values())[0].keys())
+
+    cluster_idx_dict = {}
+    for residue_id, cluster_dict in clustering_dict.items():
+
+        for dtag, cluster_idx in cluster_dict.items():
+            # When a new cluster is discovered
+            if not cluster_idx in cluster_idx_dict:
+                cluster_idx_dict[cluster_idx] = {}
+                for _residue_id in clustering_dict.keys():
+                    cluster_idx_dict[cluster_idx][_residue_id] = 0
+
+            cluster_idx_dict[cluster_idx][residue_id] = cluster_idx_dict[cluster_idx][residue_id] + 1
+
+    #
+    for residue_id, cluster_dict in clustering_dict.items():
+
+        residue_cluster_dict = {cluster_idx: cluster_idx_dict[cluster_idx][residue_id] for cluster_idx in
+                                cluster_idx_dict}
+
+        sorted_cluster_dict = {cluster_idx: sorted_cluster_val for cluster_idx, sorted_cluster_val
+                               in zip(residue_cluster_dict.keys(), sorted(residue_cluster_dict.values(), reverse=True))}
+
+        for sorted_cluster_idx, sorted_cluster_value in sorted_cluster_dict.items():
+            cluster_idx_dict[sorted_cluster_idx][residue_id] = sorted_cluster_value
+
+    fig, ax = plt.subplots(figsize=(0.2 * len(clustering_dict), 20))
+
+    cluster_bar_plot_dict = {}
+    x = np.arange(len(clustering_dict))
+    y_prev = [0.0 for residue_id in clustering_dict.keys()]
+    for cluster_idx, cluster_residue_dict in cluster_idx_dict.items():
+        y = [num_cluster_members for residue_id, num_cluster_members in cluster_residue_dict.items()]
+        print(len(x))
+        print(len(y))
+        print(len(y_prev))
+
+        p = plt.bar(x, y, bottom=y_prev)
+        y_prev = [y_prev_item + y_item for y_prev_item, y_item in zip(y_prev, y)]
+        cluster_bar_plot_dict[cluster_idx] = p
+
+    # labels = [f"{residue_id.chain}_{residue_id.insertion}" for residue_id in clustering_dict]
+    labels = [f"{residue_id}" for residue_id in clustering_dict]
+
+    plt.xticks(x, labels, rotation='vertical', fontsize=8)
+    # plt.legend([x[0] for x in cluster_bar_plot_dict.values()], [str(x) for x in cluster_bar_plot_dict.keys()])
+    fig.savefig(str(plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_embed_plot(dataset_connectivity_matrix, plot_file):
+    embedding = embed(dataset_connectivity_matrix)
+
+    fig, ax = plt.subplots(figsize=(60, 60))
+
+    ax.scatter(embedding[:, 0], embedding[:, 1])
+
+    fig.savefig(str(plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_global_cut_curve(linkage, plot_file):
+    fig, ax = plt.subplots(figsize=(60, 60))
+
+    x = np.linspace(0, 1, 100)
+
+    cuts = hierarchy.cut_tree(linkage, height=x)
+
+    num_clusters = [np.unique(cuts[:, i]).size for i in range(x.size)]
+
+    ax.scatter(x, num_clusters)
+
+    fig.savefig(str(plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_hdbscan_dendrogram(connectivity_matrix, plot_file):
+    clusterer = hdbscan.HDBSCAN(metric='precomputed', allow_single_cluster=True, min_cluster_size=10)
+    clusterer.fit(connectivity_matrix)
+    print(clusterer.labels_)
+
+    fig, ax = plt.subplots(figsize=(60, 60))
+
+    clusterer.condensed_tree_.plot(
+        select_clusters=True,
+        axis=ax,
+    )
+
+    fig.savefig(str(plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_correlation_plot(correlation_matrix, correlation_plot_file):
+    fig, ax = plt.subplots(figsize=(20, 20))
+    ax.imshow(correlation_matrix)
+    fig.savefig(str(correlation_plot_file))
+    fig.clear()
+    plt.close(fig)
