@@ -673,7 +673,7 @@ def get_distance_matrix(samples: MutableMapping[str, np.ndarray]) -> np.ndarray:
     for j in range(distance_matrix.shape[0]):
         distance_matrix[j,j] = 0
 
-    return correlation_matrix
+    return distance_matrix
 
 
 def get_reference(datasets: MutableMapping[str, Dataset], reference_dtag: Optional[str],
