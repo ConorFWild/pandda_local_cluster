@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import gemmi
-from rdkit import Chem
 
 
 def try_make(path: Path):

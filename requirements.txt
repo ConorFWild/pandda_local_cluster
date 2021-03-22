@@ -1,0 +1,11 @@
+numpy
+gemmi
+fire
+pandas
+scipy
+joblib
+plotly
+kaleido
+matplotlib
+hdbscan
+scikit-learn

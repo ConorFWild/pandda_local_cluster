@@ -4,7 +4,6 @@ from pathlib import Path
 
 # Third party
 import fire
-
 import numpy as np
 
 # Custom
