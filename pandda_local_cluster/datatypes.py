@@ -302,7 +302,7 @@ class Params:
     sample_rate: float = 3.0
 
     # Grid sampling
-    grid_size: int = 48
+    grid_size: int = 32
     grid_spacing: float = 0.5
 
     # Dataset clusterings
