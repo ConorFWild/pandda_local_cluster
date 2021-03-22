@@ -236,7 +236,7 @@ class Transform:
     def __getstate__(self):
         state = {
             "mat": self.transform.mat.tolist(),
-                 "vec": self.transform.vec.tolist(),
+            "vec": self.transform.vec.tolist(),
         }
 
         return state
@@ -310,7 +310,6 @@ class Params:
     local_cluster_cutoff: float = 0.7
     global_cluster_cutoff: float = 0.9
     min_dataset_cluster_size: int = 60
-
 
     # output
     output_smoothed_mtzs: bool = True
