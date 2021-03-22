@@ -568,7 +568,7 @@ def sample_dataset(
     # transform_vec = np.array(transform_inverse.vec.tolist())
     transform_vec = -np.array(transform.transform.vec.tolist())
 
-    transform_mat = np.array(transform_inverse.mat.tolist()).T
+    transform_mat = np.array(transform_inverse.mat.tolist())
     transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
 
     offset = np.matmul(transform_mat, np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)).flatten()
