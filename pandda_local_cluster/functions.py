@@ -147,9 +147,16 @@ def iterate_residues(
 def iterate_markers(
         datasets: MutableMapping[str, Dataset],
         markers: List[Marker],
+        alignments: MutableMapping[str, Alignment],
         debug: bool = True,
 ) -> Iterator[Tuple[Marker, MutableMapping[str, Dataset]]]:
     for marker in markers:
+
+        marker_datasets = {}
+        for dtag, dataset in datasets.items():
+            if alignments[dtag][marker] is not None:
+                marker_datasets[dtag] = dataset
+
         yield marker, datasets
 
 
@@ -568,7 +575,6 @@ def sample_dataset(
 
     transform_inverse = transform.transform.inverse()
 
-    # transform_vec = np.array(transform_inverse.vec.tolist())
     transform_vec = -np.array(transform.transform.vec.tolist())
     print(f"transform vector: {transform_vec}")
 
