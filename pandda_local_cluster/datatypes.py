@@ -251,7 +251,7 @@ class Transform:
 #     _residue_alignments: MutableMapping[ResidueID, Transform] = field(default_factory=dict)
 
 
-Alignment = MutableMapping[Marker, Transform]
+Alignment = MutableMapping[Marker, Optional[Transform]]
 
 
 @dataclass()

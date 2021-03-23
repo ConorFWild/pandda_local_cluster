@@ -461,9 +461,9 @@ def get_alignment(
 
                 dataset_res: gemmi.Residue = get_residue(dataset.structure, residue_id)
 
-                for atom_ref, atom_dataset in zip(ref_res, dataset_res):
-                    dataset_pos_list.append([atom_dataset.pos.x, atom_dataset.pos.y, atom_dataset.pos.z, ])
-                    reference_pos_list.append([atom_ref.pos.x, atom_ref.pos.y, atom_ref.pos.z, ])
+                reference_pos_list.append([reference_ca_pos.x, reference_ca_pos.y, reference_ca_pos.z])
+                dataset_pos_list.append([dataset_ca_pos.x, dataset_ca_pos.y, dataset_ca_pos.z])
+
     dataset_atom_array = np.array(dataset_pos_list)
     reference_atom_array = np.array(reference_pos_list)
 
@@ -472,7 +472,6 @@ def get_alignment(
         print(f"\t\treference atom array size: {reference_atom_array.shape}")
 
     # dataset kdtree
-    # dataset_tree = spsp.KDTree(dataset_atom_array)
     reference_tree = spsp.KDTree(reference_atom_array)
 
     # Get the transform for each
@@ -491,6 +490,10 @@ def get_alignment(
 
         # Reference selection
         reference_selection = reference_atom_array[reference_indexes]
+
+        if dataset_selection.shape[0] < 4:
+            print(f"No matching atoms near this marker! Skipping!")
+            alignment[marker] = None
 
         # Get transform
         if debug:
@@ -567,24 +570,29 @@ def sample_dataset(
 
     # transform_vec = np.array(transform_inverse.vec.tolist())
     transform_vec = -np.array(transform.transform.vec.tolist())
+    print(f"transform vector: {transform_vec}")
 
     transform_mat = np.array(transform_inverse.mat.tolist())
+    print(f"transform matrix: {transform_mat}")
+
     transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
+    print(f"transform matrix scaled: {transform_mat}")
 
-    offset = np.matmul(transform_mat, np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)).flatten()
-    print(f"Offset from: {offset}")
-    print(f"transform_vec from: {transform_vec}")
+    offset = np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)
+    print(f"offset: {offset}")
 
-    offset_tranform_vec = transform_vec - offset
-    marker_offset_tranform_vec = offset_tranform_vec + np.array([marker.x, marker.y, marker.z])
-    print(f"Sampling from: {marker_offset_tranform_vec}")
+    rotated_offset = np.matmul(transform_mat, offset).flatten()
+    print(f"rotated_offset: {rotated_offset}")
+
+    dataset_centroid = np.array([marker.x, marker.y, marker.z]) + transform_vec
+    print(f"dataset_centroid: {dataset_centroid}")
+
+    dataset_centroid_offset = dataset_centroid - rotated_offset
+    print(f"Sampling from: {dataset_centroid_offset}")
 
     tr = gemmi.Transform()
     tr.mat.fromlist(transform_mat.tolist())
-    # transform_non_inv_mat = np.array(transform.transform.mat.tolist()).T
-    # transform_non_inv_mat = np.matmul(transform_non_inv_mat, np.eye(3) * grid_spacing)
-    # tr.mat.fromlist(transform_non_inv_mat.tolist())
-    tr.vec.fromlist(marker_offset_tranform_vec.tolist())
+    tr.vec.fromlist(dataset_centroid_offset.tolist())
 
     arr = np.zeros([grid_size, grid_size, grid_size], dtype=np.float32)
 
