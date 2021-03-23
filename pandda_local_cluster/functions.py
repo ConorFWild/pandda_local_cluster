@@ -501,6 +501,7 @@ def get_alignment(
         if dataset_selection.shape[0] < 4:
             print(f"No matching atoms near this marker! Skipping!")
             alignment[marker] = None
+            continue
 
         # Get transform
         if debug:
