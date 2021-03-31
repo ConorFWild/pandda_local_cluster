@@ -652,7 +652,7 @@ def sample_xmap(transform_mat, centroid, grid_size, unaligned_xmap):
     return arr
 
 
-def sample_delta(perturbation, transform_mat, centorid,  unaligned_xmap, reference_sample, grid_size):
+def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
     offset_sectroid = perturbation + centorid
 
     sample = sample_xmap(transform_mat, offset_sectroid, grid_size, unaligned_xmap)
