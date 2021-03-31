@@ -157,7 +157,7 @@ def iterate_markers(
             if alignments[dtag][marker] is not None:
                 marker_datasets[dtag] = dataset
 
-        yield marker, datasets
+        yield marker, marker_datasets
 
 
 def get_comparator_samples(
