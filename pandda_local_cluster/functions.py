@@ -640,6 +640,128 @@ def sample_datasets(
     return samples
 
 
+def sample_xmap(transform_mat, centroid, grid_size, unaligned_xmap):
+    tr = gemmi.Transform()
+    tr.mat.fromlist(transform_mat.tolist())
+    tr.vec.fromlist(centroid.tolist())
+
+    arr = np.zeros([grid_size, grid_size, grid_size], dtype=np.float32)
+
+    unaligned_xmap.interpolate_values(arr, tr)
+
+    return arr
+
+
+def sample_delta(perturbation, transform_mat, centorid,  unaligned_xmap, reference_sample, grid_size):
+    offset_sectroid = perturbation + centorid
+
+    sample = sample_xmap(transform_mat, offset_sectroid, grid_size, unaligned_xmap)
+
+    reference_sample_mean = np.mean(reference_sample)
+    reference_sample_demeaned = reference_sample - reference_sample_mean
+    reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
+
+    sample_mean = np.mean(sample)
+    sample_demeaned = sample - sample_mean
+    sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
+
+    nominator = np.sum(reference_sample_demeaned * sample_demeaned)
+    denominator = sample_denominator * reference_sample_denominator
+
+    correlation = nominator / denominator
+
+    return correlation
+
+
+def sample_dataset_refined(
+        dataset: Dataset,
+        transform: Transform,
+        marker: Marker,
+        structure_factors: StructureFactors,
+        reference_sample: np.ndarray,
+        sample_rate: float,
+        grid_size: int,
+        grid_spacing: float,
+) -> np.ndarray:
+    reflections: gemmi.Mtz = dataset.reflections
+    unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+        structure_factors.f,
+        structure_factors.phi,
+        sample_rate=sample_rate,
+    )
+
+    unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
+
+    std = np.std(unaligned_xmap_array)
+    unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
+
+    transform_inverse = transform.transform.inverse()
+
+    transform_vec = -np.array(transform.transform.vec.tolist())
+    print(f"transform vector: {transform_vec}")
+
+    transform_mat = np.array(transform_inverse.mat.tolist())
+    print(f"transform matrix: {transform_mat}")
+
+    transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
+    print(f"transform matrix scaled: {transform_mat}")
+
+    offset = np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)
+    print(f"offset: {offset}")
+
+    rotated_offset = np.matmul(transform_mat, offset).flatten()
+    print(f"rotated_offset: {rotated_offset}")
+
+    dataset_centroid = np.array([marker.x, marker.y, marker.z]) + transform_vec
+    print(f"dataset_centroid: {dataset_centroid}")
+
+    dataset_centroid_offset = dataset_centroid - rotated_offset
+    print(f"Sampling from: {dataset_centroid_offset}")
+
+    res = scipy.optimize.shgo(
+        lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
+                                          reference_sample, grid_size),
+        [(-3, 3), (-3, 3), (-3, 3), ]
+    )
+
+    sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
+
+    return sample_arr
+
+
+def sample_datasets_refined(
+        truncated_datasets: MutableMapping[str, Dataset],
+        marker: Marker,
+        alignments: MutableMapping[str, Alignment],
+        reference_sample: np.ndarray,
+        structure_factors: StructureFactors,
+        sample_rate: float,
+        grid_size: int,
+        grid_spacing: float,
+) -> MutableMapping[str, np.ndarray]:
+    samples: MutableMapping[str, np.ndarray] = {}
+    arrays = joblib.Parallel(
+        verbose=50,
+        n_jobs=-1,
+    )(
+        joblib.delayed(sample_dataset_refined)(
+            dataset,
+            alignments[dtag][marker],
+            marker,
+            reference_sample,
+            structure_factors,
+            sample_rate,
+            grid_size,
+            grid_spacing,
+        )
+        for dtag, dataset
+        in truncated_datasets.items()
+    )
+    samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
+
+    return samples
+
+
 def get_corr(reference_sample_mask, sample_mask, diag):
     reference_mask_size = np.sum(reference_sample_mask)
     sample_mask_size = np.sum(sample_mask)

@@ -24,6 +24,8 @@ from pandda_local_cluster.functions import (
     get_markers,
     get_truncated_datasets,
     sample_datasets,
+sample_dataset,
+sample_datasets_refined,
     get_distance_matrix,
     get_linkage_from_correlation_matrix,
     cluster_density,
@@ -131,10 +133,29 @@ def run_local_cluster(
         # Sample the datasets to ndarrays
         if params.debug:
             print(f"Getting sample arrays...")
-        sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets(
+        # sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets(
+        #     truncated_datasets,
+        #     marker,
+        #     alignments,
+        #     params.structure_factors,
+        #     params.sample_rate,
+        #     params.grid_size,
+        #     params.grid_spacing,
+        # )
+        #
+        reference_sample = sample_dataset(reference_dataset,
+                                          alignments[reference_dataset.dtag],
+                                          marker,
+                                          params.structure_factors,
+                                          params.sample_rate,
+                                          params.grid_size,
+                                          params.grid_spacing,
+                                          )
+        sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined(
             truncated_datasets,
             marker,
             alignments,
+            reference_sample,
             params.structure_factors,
             params.sample_rate,
             params.grid_size,
