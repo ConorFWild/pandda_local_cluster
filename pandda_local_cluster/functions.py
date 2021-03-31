@@ -1130,7 +1130,7 @@ def get_global_distance_matrix(clustering_dict):
         for x, cluster_index_x in enumerate(residue_clustering.values()):
             for y, cluster_index_y in enumerate(residue_clustering.values()):
                 if cluster_index_x == cluster_index_y:
-                    dataset_connectivity_matrix[x, y] = dataset_connectivity_matrix[x, y] + 1
+                    dataset_connectivity_matrix[x, y] = dataset_connectivity_matrix[x, y]
 
     return dataset_connectivity_matrix / num_residues
 
