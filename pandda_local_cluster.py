@@ -144,7 +144,7 @@ def run_local_cluster(
         # )
         #
         reference_sample = sample_dataset(reference_dataset,
-                                          alignments[reference_dataset.dtag],
+                                          alignments[reference_dataset.dtag][marker],
                                           marker,
                                           params.structure_factors,
                                           params.sample_rate,
