@@ -1119,18 +1119,29 @@ def embed(distance_matrix):
     return transform
 
 
-def get_global_distance_matrix(clustering_dict):
-    num_datasets = len(list(clustering_dict.values())[0])
-    num_residues = len(clustering_dict)
+def get_global_distance_matrix(clustering_dict, markers, datasets):
+    num_datasets = len(datasets)
+    num_residues = len(markers)
 
     dataset_connectivity_matrix = np.zeros((num_datasets, num_datasets))
 
-    for residue_id, residue_clustering in clustering_dict.items():
+    for marker in markers:
+    # for residue_id, residue_clustering in clustering_dict.items():
 
-        for x, cluster_index_x in enumerate(residue_clustering.values()):
-            for y, cluster_index_y in enumerate(residue_clustering.values()):
+        for x, dtag in enumerate(datasets):
+            try:
+                cluster_index_x = clustering_dict[marker][dtag]
+            except:
+                continue
+
+            for y, dtag_y in enumerate(datasets):
+                try:
+                    cluster_index_y = clustering_dict[marker][dtag_y]
+                except:
+                    continue
+
                 if cluster_index_x == cluster_index_y:
-                    dataset_connectivity_matrix[x, y] = dataset_connectivity_matrix[x, y]
+                    dataset_connectivity_matrix[x, y] = dataset_connectivity_matrix[x, y] + 1
 
     return dataset_connectivity_matrix / num_residues
 
