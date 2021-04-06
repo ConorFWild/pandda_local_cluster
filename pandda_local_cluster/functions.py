@@ -1124,6 +1124,7 @@ def get_global_distance_matrix(clustering_dict, markers, datasets):
     num_residues = len(markers)
 
     dataset_connectivity_matrix = np.zeros((num_datasets, num_datasets))
+    num_residues_matrix = np.zeros((num_datasets, num_datasets))
 
     for marker in markers:
     # for residue_id, residue_clustering in clustering_dict.items():
@@ -1140,10 +1141,13 @@ def get_global_distance_matrix(clustering_dict, markers, datasets):
                 except:
                     continue
 
+                num_residues_matrix[x,y] = num_residues_matrix[x, y] + 1
+
                 if cluster_index_x == cluster_index_y:
                     dataset_connectivity_matrix[x, y] = dataset_connectivity_matrix[x, y] + 1
 
-    return dataset_connectivity_matrix / num_residues
+
+    return dataset_connectivity_matrix / num_residues_matrix
 
 
 def save_parallel_cat_plot(clustering_dict, out_file):
