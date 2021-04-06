@@ -209,6 +209,7 @@ def run_local_cluster(
 
     # Perform global clustering
     global_distance_matrix = get_global_distance_matrix(marker_clusters, markers, smoothed_datasets)
+    print(global_distance_matrix)
     global_linkage: np.ndarray = get_linkage_from_correlation_matrix(global_distance_matrix)
     global_clusters: np.ndarray = cluster_density(
         global_linkage,
