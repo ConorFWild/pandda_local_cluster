@@ -1177,6 +1177,8 @@ def save_parallel_cat_plot(clustering_dict, out_file):
 
 
 def save_json(clustering_dict, path):
+    clustering_dict_python = {marker.resid: result for marker, result in clustering_dict.items()}
+
     with open(str(path), "w") as f:
         json.dump(clustering_dict, f)
 
