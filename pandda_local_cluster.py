@@ -110,7 +110,13 @@ def run_local_cluster(
 
     # Loop over the residues, sampling the local electron density
     marker_clusters = {}
+    j = 0
     for marker, marker_datasets in iterate_markers(datasets, markers, alignments):
+        j = j + 1
+
+        if j > 6:
+            break
+
         if len(marker_datasets) == 0:
             print(f"No datasets at residue: {marker}!")
             continue
