@@ -1127,7 +1127,7 @@ def get_global_distance_matrix(clustering_dict, markers, datasets):
     num_residues_matrix = np.zeros((num_datasets, num_datasets))
 
     for marker in markers:
-    # for residue_id, residue_clustering in clustering_dict.items():
+        # for residue_id, residue_clustering in clustering_dict.items():
 
         for x, dtag in enumerate(datasets):
             try:
@@ -1141,11 +1141,10 @@ def get_global_distance_matrix(clustering_dict, markers, datasets):
                 except:
                     continue
 
-                num_residues_matrix[x,y] = num_residues_matrix[x, y] + 1
+                num_residues_matrix[x, y] = num_residues_matrix[x, y] + 1
 
                 if cluster_index_x == cluster_index_y:
                     dataset_connectivity_matrix[x, y] = dataset_connectivity_matrix[x, y] + 1
-
 
     return dataset_connectivity_matrix / num_residues_matrix
 
@@ -1177,7 +1176,9 @@ def save_parallel_cat_plot(clustering_dict, out_file):
 
 
 def save_json(clustering_dict, path):
-    clustering_dict_python = {marker.resid: result for marker, result in clustering_dict.items()}
+    clustering_dict_python = {
+        "{}_{}_{}".format(marker.resid.model, marker.resid.chain, marker.resid.insertion): result
+        for marker, result in clustering_dict.items()}
 
     with open(str(path), "w") as f:
         json.dump(clustering_dict_python, f)
