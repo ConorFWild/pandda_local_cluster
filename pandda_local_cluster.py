@@ -226,15 +226,15 @@ def run_local_cluster(
     dtag_list = list(list(marker_clusters.values())[0].keys())
 
     # # Connectivity
-    save_correlation_plot(global_distance_matrix,
-                          out_dir / f"global_connectivity_correlation.png",
-                          )
-
-    # # Summary plots
-    save_dendrogram_plot(global_linkage,
-                         labels=[dtag for dtag in dtag_list],
-                         dendrogram_plot_file=out_dir / f"global_connectivity_dendrogram.png",
-                         )
+    # save_correlation_plot(global_distance_matrix,
+    #                       out_dir / f"global_connectivity_correlation.png",
+    #                       )
+    #
+    # # # Summary plots
+    # save_dendrogram_plot(global_linkage,
+    #                      labels=[dtag for dtag in dtag_list],
+    #                      dendrogram_plot_file=out_dir / f"global_connectivity_dendrogram.png",
+    #                      )
 
     save_num_clusters_bar_plot(marker_clusters, out_dir / f"global_residue_cluster_bar.png")
 
