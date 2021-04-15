@@ -86,6 +86,10 @@ def run_local_cluster(
         known_apos = [dataset.dtag for dtag, dataset in datasets.items() if not dataset.fragment_path]
         if params.debug:
             print(f"Got {len(known_apos)} known apos")
+
+        if len(known_apos) == 0:
+            print("WARNING! Did not find any known apos. Using all datasets.")
+            known_apos = [dataset.dtag for dtag, dataset in datasets.items()]
     else:
         if params.debug:
             print(f"Was given {len(known_apos)} known apos")
