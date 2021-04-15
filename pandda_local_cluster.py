@@ -86,6 +86,9 @@ def run_local_cluster(
         known_apos = [dataset.dtag for dtag, dataset in datasets.items() if not dataset.fragment_path]
         if params.debug:
             print(f"Got {len(known_apos)} known apos")
+    else:
+        if params.debug:
+            print(f"Was given {len(known_apos)} known apos")
 
     # Get a reference dataset against which to sample things
     reference_dataset: Dataset = get_reference(datasets, reference_dtag, known_apos)
