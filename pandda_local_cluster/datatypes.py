@@ -320,6 +320,13 @@ class Params:
             if key == "debug":
                 self.debug = value
 
+            # Regexes
+            elif key == "structure_regex":
+                self.structure_regex = value
+
+            elif key == "reflections_regex":
+                self.reflections_regex = value
+
             # Diffraction handling
             elif key == "structure_factors":
                 self.structure_factors = StructureFactors(*value.split(","))
