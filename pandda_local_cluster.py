@@ -48,10 +48,13 @@ def run_local_cluster(
         known_apos: List[str] = None,
         reference_dtag: Optional[str] = None,
         markers: Optional[List[Tuple[float, float, float]]] = None,
-        **kwargs):
+        structure_factors="FWT,PHWT",
+        pdb_regex="*.pdb",
+        mtz_regex="*.mtz",
+):
     # Update the Parameters
     params: Params = Params()
-    params.update(**kwargs)
+    params.update(structure_factors=structure_factors, pdb_regex=pdb_regex, mtz_regex=mtz_regex)
     if params.debug:
         print(params)
 
