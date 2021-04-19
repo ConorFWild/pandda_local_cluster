@@ -651,8 +651,8 @@ def sample_xmap(transform_mat, centroid, grid_size, unaligned_xmap):
 
     return arr
 
-
-def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
+def sample_delta_transform_only(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
+    # transformation = perturbation[]
     offset_sectroid = perturbation + centorid
 
     sample = sample_xmap(transform_mat, offset_sectroid, grid_size, unaligned_xmap)
@@ -671,6 +671,36 @@ def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, referenc
     correlation = nominator / denominator
 
     return correlation
+
+
+def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
+    transformation_perturbation = perturbation[0:3]
+    rotation_perturbation = perturbation[3:6]
+    perturbed_centroid = transformation_perturbation + centorid
+
+    rotation_perturbation_obj = scipy.spatial.transform.Rotation.from_euler(
+        "xyz",
+        [rotation_perturbation[0], rotation_perturbation[1], rotation_perturbation[2]], degrees=True)
+    rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
+
+    perturbed_rotation_mat = np.matmul(transform_mat, rotation_perturbation_mat)
+
+    sample = sample_xmap(perturbed_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
+
+    reference_sample_mean = np.mean(reference_sample)
+    reference_sample_demeaned = reference_sample - reference_sample_mean
+    reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
+
+    sample_mean = np.mean(sample)
+    sample_demeaned = sample - sample_mean
+    sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
+
+    nominator = np.sum(reference_sample_demeaned * sample_demeaned)
+    denominator = sample_denominator * reference_sample_denominator
+
+    correlation = nominator / denominator
+
+    return 1-correlation
 
 
 def sample_dataset_refined(
@@ -718,13 +748,21 @@ def sample_dataset_refined(
     dataset_centroid_offset = dataset_centroid - rotated_offset
     print(f"Sampling from: {dataset_centroid_offset}")
 
+    initial_rscc =  sample_delta((0.0,0.0,0.0,0.0,0.0,0.0), transform_mat, dataset_centroid_offset, unaligned_xmap,
+                                          reference_sample, grid_size)
+    print(f"Intial rscc is: {initial_rscc}")
+
     res = scipy.optimize.shgo(
         lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
                                           reference_sample, grid_size),
-        [(-3, 3), (-3, 3), (-3, 3), ]
+        [(-3, 3), (-3, 3), (-3, 3), (0.0, 360),(0.0, 360),(0.0, 360),]
     )
 
+    print(f"Refinement is: {res}")
+
     sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
+
+
 
     return sample_arr
 
