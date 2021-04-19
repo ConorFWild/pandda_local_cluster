@@ -772,7 +772,8 @@ def sample_dataset_refined(
     res = scipy.optimize.shgo(
         lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
                                           reference_sample, grid_size),
-        [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
+        [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ],
+        n=60, iters=5, sampling_method='sobol'
     )
 
     # res = scipy.optimize.differential_evolution(
