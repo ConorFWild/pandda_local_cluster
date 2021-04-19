@@ -306,7 +306,7 @@ class Params:
     grid_spacing: float = 0.5
 
     # Dataset clusterings
-    local_cluster_cutoff: float = 0.7
+    local_cluster_cutoff: float = 0.6
     global_cluster_cutoff: float = 0.9
     min_dataset_cluster_size: int = 60
 
@@ -344,6 +344,8 @@ class Params:
                 self.strong_density_cluster_cutoff = value
             elif key == "min_dataset_cluster_size":
                 self.min_dataset_cluster_size = value
+            elif key == "cutoff":
+                self.local_cluster_cutoff = value
 
             # Fragment searching
             elif key == "num_fragment_pose_samples":

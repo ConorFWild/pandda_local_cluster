@@ -51,10 +51,13 @@ def run_local_cluster(
         structure_factors="FWT,PHWT",
         structure_regex="*.pdb",
         reflections_regex="*.mtz",
+        cutoff=0.7,
 ):
     # Update the Parameters
     params: Params = Params()
-    params.update(structure_factors=structure_factors, structure_regex=structure_regex, reflections_regex=reflections_regex)
+    params.update(structure_factors=structure_factors, structure_regex=structure_regex,
+                  reflections_regex=reflections_regex,
+                  cutoff=cutoff)
     if params.debug:
         print(params)
 
