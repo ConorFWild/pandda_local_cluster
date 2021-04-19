@@ -689,6 +689,7 @@ def sample_xmap_perturbed(perturbation, transform_mat, centorid, unaligned_xmap,
 
     return sample
 
+
 def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
     transformation_perturbation = perturbation[0:3]
     rotation_perturbation = perturbation[3:6]
