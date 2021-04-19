@@ -771,7 +771,7 @@ def sample_dataset_refined(
     res = scipy.optimize.shgo(
         lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
                                           reference_sample, grid_size),
-        [(-3, 3), (-3, 3), (-3, 3), (0.0, 360), (0.0, 360), (0.0, 360), ]
+        [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
     )
 
     print(f"Refinement is: {res}")
