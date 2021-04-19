@@ -1,6 +1,7 @@
 # First party
 from typing import *
 from pathlib import Path
+import time
 
 # Third party
 import fire
@@ -233,9 +234,18 @@ def run_local_cluster(
         }
     # End loop over residues
 
+    save_num_clusters_bar_plot(marker_clusters, out_dir / f"global_residue_cluster_bar.png")
+
+    save_num_clusters_stacked_bar_plot(marker_clusters, out_dir / f"global_residue_cluster_stacked_bar.png")
+
     # Perform global clustering
     global_distance_matrix = get_global_distance_matrix(marker_clusters, markers, smoothed_datasets)
     print(global_distance_matrix)
+    print(global_distance_matrix[0, :])
+    print(global_distance_matrix[-1, :])
+
+    time.sleep(60)
+
     global_linkage: np.ndarray = get_linkage_from_correlation_matrix(global_distance_matrix)
     global_clusters: np.ndarray = cluster_density(
         global_linkage,
@@ -262,9 +272,6 @@ def run_local_cluster(
     #                      dendrogram_plot_file=out_dir / f"global_connectivity_dendrogram.png",
     #                      )
 
-    save_num_clusters_bar_plot(marker_clusters, out_dir / f"global_residue_cluster_bar.png")
-
-    save_num_clusters_stacked_bar_plot(marker_clusters, out_dir / f"global_residue_cluster_stacked_bar.png")
 
     save_embed_plot(global_distance_matrix, out_dir / f"global_embed_scatter.png")
 
