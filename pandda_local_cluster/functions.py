@@ -769,17 +769,17 @@ def sample_dataset_refined(
                                 reference_sample, grid_size)
     print(f"Intial rscc is: {initial_rscc}")
 
-    # res = scipy.optimize.shgo(
-    #     lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
-    #                                       reference_sample, grid_size),
-    #     [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
-    # )
-
-    res = scipy.optimize.differential_evolution(
+    res = scipy.optimize.shgo(
         lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
                                           reference_sample, grid_size),
         [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
     )
+
+    # res = scipy.optimize.differential_evolution(
+    #     lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
+    #                                       reference_sample, grid_size),
+    #     [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
+    # )
 
 
 
