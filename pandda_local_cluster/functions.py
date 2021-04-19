@@ -774,7 +774,7 @@ def sample_dataset_refined(
         [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
     )
 
-    print(f"Refinement is: {res}")
+    print(f"Initial rscc was: {initial_rscc}; Refinement is: {res}")
 
     # sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
 
