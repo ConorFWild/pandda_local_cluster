@@ -673,6 +673,7 @@ def sample_delta_transform_only(perturbation, transform_mat, centorid, unaligned
 
     return correlation
 
+
 def sample_xmap_perturbed(perturbation, transform_mat, centorid, unaligned_xmap, grid_size):
     transformation_perturbation = perturbation[0:3]
     rotation_perturbation = perturbation[3:6]
@@ -782,15 +783,13 @@ def sample_dataset_refined(
     #     [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
     # )
 
-
-
     print(f"Initial rscc was: {initial_rscc}; Refinement is: {res}")
 
     # sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
 
     sample_arr = sample_xmap_perturbed(res.x, transform_mat, dataset_centroid_offset, unaligned_xmap, grid_size)
 
-    return 1-res.fun, sample_arr
+    return 1 - res.fun, sample_arr
 
 
 def sample_datasets_refined(
@@ -1235,6 +1234,10 @@ def smooth_datasets(
 
 def save_mtz(mtz: gemmi.Mtz, path: Path):
     mtz.write_to_file(str(path))
+
+
+def save_distance_matrix(distance_matrix, path):
+    np.save(str(path), distance_matrix)
 
 
 def embed(distance_matrix):

@@ -40,6 +40,7 @@ sample_datasets_refined,
     save_parallel_cat_plot,
     save_correlation_plot,
 sample_datasets_refined_iterative,
+save_distance_matrix
 )
 
 
@@ -206,6 +207,9 @@ def run_local_cluster(
         )
 
         # Output
+        save_distance_matrix(distance_matrix,
+                             out_dir / f"{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}.npy")
+
         save_dendrogram_plot(linkage,
                              labels=[dtag for dtag in sample_arrays.keys()],
                              dendrogram_plot_file=out_dir / f"{marker.resid}_dendrogram.png",
