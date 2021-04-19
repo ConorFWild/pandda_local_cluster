@@ -847,8 +847,14 @@ def sample_datasets_refined_iterative(
 
         reference_dtag = dtag_array[0]
 
-        reference_sample = get_reference(datasets_to_process, reference_dtag, apo_datatags)
-
+        reference_sample = sample_dataset(truncated_datasets[reference_dtag],
+                                          alignments[reference_dtag][marker],
+                                          marker,
+                                          structure_factors,
+                                          sample_rate,
+                                          grid_size,
+                                          grid_spacing,
+                                          )
         arrays = joblib.Parallel(
             verbose=50,
             n_jobs=-1,
