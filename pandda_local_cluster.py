@@ -39,6 +39,7 @@ sample_datasets_refined,
     save_global_cut_curve,
     save_parallel_cat_plot,
     save_correlation_plot,
+sample_datasets_refined_iterative,
 )
 
 
@@ -166,16 +167,28 @@ def run_local_cluster(
                                           params.grid_size,
                                           params.grid_spacing,
                                           )
-        sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined(
+        # sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined(
+        #     truncated_datasets,
+        #     marker,
+        #     alignments,
+        #     reference_sample,
+        #     params.structure_factors,
+        #     params.sample_rate,
+        #     params.grid_size,
+        #     params.grid_spacing,
+        # )
+        sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined_iterative(
             truncated_datasets,
             marker,
             alignments,
-            reference_sample,
+            known_apos,
             params.structure_factors,
             params.sample_rate,
             params.grid_size,
             params.grid_spacing,
+            0.7
         )
+
 
         # Get the distance matrix
         distance_matrix: np.ndarray = get_distance_matrix(sample_arrays)

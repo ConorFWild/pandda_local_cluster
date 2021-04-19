@@ -790,7 +790,7 @@ def sample_dataset_refined(
 
     sample_arr = sample_xmap_perturbed(res.x, transform_mat, dataset_centroid_offset, unaligned_xmap, grid_size)
 
-    return sample_arr
+    return 1-res.fun, sample_arr
 
 
 def sample_datasets_refined(
@@ -822,6 +822,62 @@ def sample_datasets_refined(
         in truncated_datasets.items()
     )
     samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
+
+    return samples
+
+
+def sample_datasets_refined_iterative(
+        truncated_datasets: MutableMapping[str, Dataset],
+        marker: Marker,
+        alignments: MutableMapping[str, Alignment],
+        apo_datatags: np.ndarray,
+        structure_factors: StructureFactors,
+        sample_rate: float,
+        grid_size: int,
+        grid_spacing: float,
+        cutoff,
+) -> MutableMapping[str, np.ndarray]:
+    samples: MutableMapping[str, np.ndarray] = {}
+
+    datasets_to_process = truncated_datasets
+
+    while len(samples) < len(truncated_datasets):
+        print(f"\tGot {len(datasets_to_process)} datasets left to align")
+        dtag_array = list(datasets_to_process.keys())
+
+        reference_dtag = dtag_array[0]
+
+        reference_sample = get_reference(datasets_to_process, reference_dtag, apo_datatags)
+
+        arrays = joblib.Parallel(
+            verbose=50,
+            n_jobs=-1,
+        )(
+            joblib.delayed(sample_dataset_refined)(
+                datasets_to_process[dtag],
+                alignments[dtag][marker],
+                marker,
+                reference_sample,
+                structure_factors,
+                sample_rate,
+                grid_size,
+                grid_spacing,
+            )
+            for dtag
+            in dtag_array
+        )
+
+        for j, dtag in enumerate(dtag_array):
+            rscc = arrays[j][0]
+            array = arrays[j][1]
+
+            if rscc > cutoff:
+                samples[dtag] = array
+                del datasets_to_process[dtag]
+            else:
+                continue
+
+    # samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
 
     return samples
 
