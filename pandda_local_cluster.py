@@ -25,8 +25,8 @@ from pandda_local_cluster.functions import (
     get_markers,
     get_truncated_datasets,
     sample_datasets,
-sample_dataset,
-sample_datasets_refined,
+    sample_dataset,
+    sample_datasets_refined,
     get_distance_matrix,
     get_linkage_from_correlation_matrix,
     cluster_density,
@@ -40,8 +40,8 @@ sample_datasets_refined,
     save_global_cut_curve,
     save_parallel_cat_plot,
     save_correlation_plot,
-sample_datasets_refined_iterative,
-save_distance_matrix
+    sample_datasets_refined_iterative,
+    save_distance_matrix
 )
 
 
@@ -128,7 +128,6 @@ def run_local_cluster(
     marker_clusters = {}
     for marker, marker_datasets in iterate_markers(datasets, markers, alignments):
 
-
         if len(marker_datasets) == 0:
             print(f"No datasets at residue: {marker}!")
             continue
@@ -190,7 +189,6 @@ def run_local_cluster(
             params.grid_spacing,
             0.7
         )
-
 
         # Get the distance matrix
         distance_matrix: np.ndarray = get_distance_matrix(sample_arrays)
@@ -271,7 +269,6 @@ def run_local_cluster(
     #                      labels=[dtag for dtag in dtag_list],
     #                      dendrogram_plot_file=out_dir / f"global_connectivity_dendrogram.png",
     #                      )
-
 
     save_embed_plot(global_distance_matrix, out_dir / f"global_embed_scatter.png")
 
