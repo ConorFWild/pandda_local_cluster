@@ -149,6 +149,7 @@ def run_local_cluster(
             reference_dataset,
             params.structure_factors,
         )
+        print(f"After truncation have {len(truncated_datasets)} datasets")
 
         # resolution
         resolution: float = list(truncated_datasets.values())[0].reflections.resolution_high()
@@ -197,6 +198,8 @@ def run_local_cluster(
             params.grid_spacing,
             0.7
         )
+        print(f"Got {len(sample_arrays)} samples")
+
 
         # Get the distance matrix
         distance_matrix: np.ndarray = get_distance_matrix(sample_arrays)
