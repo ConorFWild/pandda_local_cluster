@@ -464,12 +464,39 @@ def get_alignment(
                         print(f"\t\tAlignment exception: {e}")
                     continue
 
-                residue_id: ResidueID = get_residue_id(model, chain, ref_res.seqid.num)
-
-                dataset_res: gemmi.Residue = get_residue(dataset.structure, residue_id)
+                # residue_id: ResidueID = get_residue_id(model, chain, ref_res.seqid.num)
+                #
+                # dataset_res: gemmi.Residue = get_residue(dataset.structure, residue_id)
 
                 reference_pos_list.append([reference_ca_pos.x, reference_ca_pos.y, reference_ca_pos.z])
                 dataset_pos_list.append([dataset_ca_pos.x, dataset_ca_pos.y, dataset_ca_pos.z])
+
+                try:
+
+                    # Get ca pos from reference
+                    print("Getting ref cb")
+                    current_res_id: ResidueID = get_residue_id(model, chain, ref_res.seqid.num)
+                    print(type(ref_res))
+                    print(ref_res)
+                    reference_cb_pos = ref_res["CB"][0].pos
+
+                    print("Getting dataset cb")
+                    # Get the ca pos from the dataset
+                    dataset_res = get_residue(dataset.structure, current_res_id)
+                    print(type(dataset_res))
+                    print(dataset_res)
+                    dataset_cb_pos = dataset_res["CB"][0].pos
+                except Exception as e:
+                    if debug:
+                        print(f"\t\tAlignment exception: {e}")
+                    continue
+
+                # residue_id: ResidueID = get_residue_id(model, chain, ref_res.seqid.num)
+                #
+                # dataset_res: gemmi.Residue = get_residue(dataset.structure, residue_id)
+
+                reference_pos_list.append([reference_cb_pos.x, reference_cb_pos.y, reference_cb_pos.z])
+                dataset_pos_list.append([dataset_cb_pos.x, dataset_cb_pos.y, dataset_cb_pos.z])
 
     dataset_atom_array = np.array(dataset_pos_list)
     reference_atom_array = np.array(reference_pos_list)

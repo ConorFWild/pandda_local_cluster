@@ -128,6 +128,9 @@ def run_local_cluster(
     marker_clusters = {}
     for marker, marker_datasets in iterate_markers(datasets, markers, alignments):
 
+        if marker.resid.insertion != "29":
+            continue
+
         if len(marker_datasets) == 0:
             print(f"No datasets at residue: {marker}!")
             continue
