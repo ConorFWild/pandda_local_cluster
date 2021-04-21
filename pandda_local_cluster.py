@@ -128,11 +128,13 @@ def run_local_cluster(
     marker_clusters = {}
     for marker, marker_datasets in iterate_markers(datasets, markers, alignments):
 
+
+        if marker.resid.insertion != "29":
+            continue
+
         print(f"Processing marker: {marker}")
         print(f"Got number of datasets: {len(marker_datasets)}")
         print(f"Datasets are: {marker_datasets}")
-        if marker.resid.insertion != "29":
-            continue
 
         if len(marker_datasets) == 0:
             print(f"No datasets at residue: {marker}!")
@@ -236,6 +238,8 @@ def run_local_cluster(
             for dtag, cluster_id
             in zip(sample_arrays.keys(), dataset_clusters.flatten().tolist())
         }
+
+        print(f"Marker clusters: {marker_clusters}")
     # End loop over residues
 
     save_num_clusters_bar_plot(marker_clusters, out_dir / f"global_residue_cluster_bar.png")
