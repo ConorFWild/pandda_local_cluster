@@ -865,9 +865,11 @@ def sample_datasets_refined_iterative(
 ) -> MutableMapping[str, np.ndarray]:
     samples: MutableMapping[str, np.ndarray] = {}
 
-    datasets_to_process = truncated_datasets
+    datasets_to_process = {dtag: dataset for dtag, dataset in truncated_datasets.items()}
 
-    while len(samples) < len(truncated_datasets):
+    truncated_datasets_length = len(truncated_datasets)
+
+    while len(samples) < truncated_datasets_length:
         print(f"\tGot {len(datasets_to_process)} datasets left to align")
         dtag_array = list(datasets_to_process.keys())
 
