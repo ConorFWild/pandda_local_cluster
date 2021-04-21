@@ -128,6 +128,9 @@ def run_local_cluster(
     marker_clusters = {}
     for marker, marker_datasets in iterate_markers(datasets, markers, alignments):
 
+        print(f"Processing marker: {marker}")
+        print(f"Got number of datasets: {len(marker_datasets)}")
+        print(f"Datasets are: {marker_datasets}")
         if marker.resid.insertion != "29":
             continue
 
