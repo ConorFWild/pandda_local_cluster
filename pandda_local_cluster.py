@@ -41,7 +41,8 @@ from pandda_local_cluster.functions import (
     save_parallel_cat_plot,
     save_correlation_plot,
     sample_datasets_refined_iterative,
-    save_distance_matrix
+    save_distance_matrix,
+    save_dtag_array,
 )
 
 
@@ -128,9 +129,8 @@ def run_local_cluster(
     marker_clusters = {}
     for marker, marker_datasets in iterate_markers(datasets, markers, alignments):
 
-
-        if marker.resid.insertion != "29":
-            continue
+        # if marker.resid.insertion != "29":
+        #     continue
 
         print(f"Processing marker: {marker}")
         print(f"Got number of datasets: {len(marker_datasets)}")
@@ -200,7 +200,6 @@ def run_local_cluster(
         )
         print(f"Got {len(sample_arrays)} samples")
 
-
         # Get the distance matrix
         distance_matrix: np.ndarray = get_distance_matrix(sample_arrays)
         if params.debug:
@@ -219,6 +218,10 @@ def run_local_cluster(
         # Output
         save_distance_matrix(distance_matrix,
                              out_dir / f"{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}.npy")
+
+        save_dtag_array(np.array(list(sample_arrays.keys())),
+                        out_dir / f"{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}_dtags.npy",
+                        )
 
         save_dendrogram_plot(linkage,
                              labels=[dtag for dtag in sample_arrays.keys()],

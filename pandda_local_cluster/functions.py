@@ -1269,6 +1269,10 @@ def save_distance_matrix(distance_matrix, path):
     np.save(str(path), distance_matrix)
 
 
+def save_dtag_array(dtag_array, path):
+    np.save(str(path), dtag_array)
+
+
 def embed(distance_matrix):
     pca = decomposition.PCA(n_components=50)
     tsne = manifold.TSNE(n_components=2)
