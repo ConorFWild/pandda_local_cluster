@@ -134,6 +134,7 @@ class Dataset:
             self.fragment_structures = state["fragment_structures"]
         self.smoothing_factor = state["smoothing_factor"]
 
+Datasets = MutableMapping[str, Dataset]
 
 @dataclass()
 class Data:
