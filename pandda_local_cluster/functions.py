@@ -196,6 +196,7 @@ def get_dataset_from_dir(
         reflections_regex: str,
         smiles_regex: str,
         pruning_threshold: float,
+        structure_factors: StructureFactors,
         debug: bool = True,
 ) -> Optional[Dataset]:
     if debug:
@@ -210,6 +211,7 @@ def get_dataset_from_dir(
         reflections_path: Optional[Path] = get_path_from_regex(directory, reflections_regex)
         smiles_path: Optional[Path] = get_path_from_regex(directory, smiles_regex)
 
+
         if structure_path and reflections_path:
 
             fragment_structures = None
@@ -223,6 +225,10 @@ def get_dataset_from_dir(
                 fragment_path=smiles_path,
                 fragment_structures=fragment_structures,
             )
+
+            if (structure_factors.f not in dataset.reflections.column_labels()) or (structure_factors.phi not in dataset.reflections.column_labels()):
+                print(f"\t\t{directory} Lacks structure factors. Skipping")
+                return None
 
             return dataset
 
@@ -240,6 +246,7 @@ def get_datasets(
         reflections_regex: str,
         smiles_regex: str,
         pruning_threshold: float,
+        structure_factors: StructureFactors,
         debug: bool = True,
 ) -> MutableMapping[str, Dataset]:
     # Iterate over the paths
@@ -257,6 +264,7 @@ def get_datasets(
             reflections_regex,
             smiles_regex,
             pruning_threshold,
+            structure_factors,
             debug,
         )
         for directory

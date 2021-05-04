@@ -180,9 +180,10 @@ def run_global_cluster(
         params.reflections_regex,
         params.smiles_regex,
         0.0,
+        params.structure_factors,
     )
     if params.debug:
-        print(datasets)
+        print(f"Got: {len(datasets)} datasets")
 
     if not known_apos:
         known_apos = [dataset.dtag for dtag, dataset in datasets.items() if not dataset.fragment_path]
@@ -200,6 +201,7 @@ def run_global_cluster(
     reference_dataset: Dataset = get_reference(datasets, reference_dtag, known_apos)
     if params.debug:
         print(f"Reference dataset for alignment is: {reference_dataset.dtag}")
+        print(f"Reference reflection mtz columns are: {reference_dataset.reflections.column_labels()}")
 
     # B factor smooth the datasets
     smoothed_datasets: MutableMapping[str, Dataset] = smooth_datasets(
@@ -228,7 +230,7 @@ def run_global_cluster(
         print(f"Resolution is: {resolution}")
 
     # Determine the sampling region
-    sample_region = get_sample_region(reference_dataset)
+    sample_region = get_sample_region(reference_dataset, params.grid_spacing, 1.5)
 
     # Sample the datasets to ndarrays
     if params.debug:
