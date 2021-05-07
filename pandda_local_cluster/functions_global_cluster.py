@@ -307,7 +307,7 @@ def refine_sample_dataset_global(dataset, alignment, sample_region, reference_sa
     sample_arr = sample_dataset_global_perturbed(res.x, transformed_sample_region,
                                                  unaligned_xmap, )
 
-    return 1-res.fun, sample_arr
+    return 1 - res.fun, sample_arr
 
 
 def sample_reference_dataset_global(dataset, alignment, sample_region, structure_factors,
@@ -333,6 +333,43 @@ def sample_reference_dataset_global(dataset, alignment, sample_region, structure
     reference_sample = sample_dataset_global(unaligned_xmap, transformed_sample_region)
 
     return reference_sample
+
+def get_mask(dataset, alignment, sample_region, structure_factors,
+                                        sample_rate, ):
+        # Get the unaligned xmap
+        reflections: gemmi.Mtz = dataset.reflections
+        unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+            structure_factors.f,
+            structure_factors.phi,
+            sample_rate=sample_rate,
+        )
+        unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
+        std = np.std(unaligned_xmap_array)
+        unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
+
+        # Transform sample region
+        transformed_sample_region = get_transformed_sample_region(
+            sample_region,
+            alignment,
+        )
+
+        # mask
+        mask = gemmi.FloatGrid(reference_xmap.xmap.nu,
+                               reference_xmap.xmap.nv,
+                               reference_xmap.xmap.nw, )
+        mask.set_unit_cell(reference_xmap.xmap.unit_cell)
+        mask.spacegroup = gemmi.find_spacegroup_by_name("P 1")
+
+        for model in reference_structure.structure:
+            for chain in model:
+                for residue in chain.get_polymer():
+                    for atom in residue:
+                        mask.set_points_around(atom.pos, 5.0, 1.0)
+
+        # Get sample
+        reference_sample = sample_dataset_global(unaligned_xmap, transformed_sample_region)
+
+        return reference_sample
 
 
 def sample_datasets_global(datasets: Datasets, alignments, structure_factors, grid_step,
@@ -369,6 +406,14 @@ def sample_datasets_global(datasets: Datasets, alignments, structure_factors, gr
                                                            sample_region,
                                                            structure_factors,
                                                            sample_rate)
+
+        # sample mask
+        sample_mask = get_mask(reference,
+                               alignment[reference.dtag],
+                               sample_region)
+
+        # Mask reference sample
+        reference_sample = reference_sample * sample_mask
 
         # Sample datasets
         arrays = joblib.Parallel(
