@@ -15,4 +15,5 @@ class SampleRegion:
     origin: np.ndarray
     rotation: np.ndarray
     gridding: np.ndarray
+    spacing: np.ndarray
     mask: Optional[np.ndarray]
