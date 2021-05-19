@@ -5,8 +5,11 @@ import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import typing
+
 import numpy as np
 import gemmi
+import scipy
 
 
 def try_make(path: Path):
@@ -134,7 +137,9 @@ class Dataset:
             self.fragment_structures = state["fragment_structures"]
         self.smoothing_factor = state["smoothing_factor"]
 
+
 Datasets = MutableMapping[str, Dataset]
+
 
 @dataclass()
 class Data:
@@ -173,8 +178,21 @@ class ResidueID:
     chain: str
     insertion: str
 
+    @staticmethod
+    def from_residue_chain(model: gemmi.Model, chain: gemmi.Chain, res: gemmi.Residue):
+        return ResidueID(model.name,
+                         chain.name,
+                         str(res.seqid.num),
+                         )
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, type(self)):
+            return ((self.model, self.chain, self.insertion) ==
+                    (other.model, other.chain, other.insertion))
+        return NotImplemented
+
     def __hash__(self):
-        return hash((self.model, self.chain, self.insertion,))
+        return hash((self.model, self.chain, self.insertion))
 
 
 @dataclass()
@@ -245,6 +263,187 @@ class Transform:
         self.transform = gemmi.Transform()
         self.transform.mat.fromlist(state["mat"])
         self.transform.vec.fromlist(state["vec"])
+
+
+@dataclass()
+class TransformGlobal:
+    transform: gemmi.Transform
+    com_reference: np.array
+    com_moving: np.array
+
+    def apply_moving_to_reference(self, positions: typing.Dict[typing.Tuple[int], gemmi.Position]) -> typing.Dict[
+        typing.Tuple[int], gemmi.Position]:
+        transformed_positions = {}
+        for index, position in positions.items():
+            rotation_frame_position = gemmi.Position(position[0] - self.com_moving[0],
+                                                     position[1] - self.com_moving[1],
+                                                     position[2] - self.com_moving[2])
+            transformed_vector = self.transform.apply(rotation_frame_position)
+
+            transformed_positions[index] = gemmi.Position(transformed_vector[0] + self.com_reference[0],
+                                                          transformed_vector[1] + self.com_reference[1],
+                                                          transformed_vector[2] + self.com_reference[2])
+
+        return transformed_positions
+
+    def apply_reference_to_moving(self, positions: typing.Dict[typing.Tuple[int], gemmi.Position]) -> typing.Dict[
+        typing.Tuple[int], gemmi.Position]:
+        inverse_transform = self.transform.inverse()
+        transformed_positions = {}
+        for index, position in positions.items():
+            rotation_frame_position = gemmi.Position(position[0] - self.com_reference[0],
+                                                     position[1] - self.com_reference[1],
+                                                     position[2] - self.com_reference[2])
+            transformed_vector = inverse_transform.apply(rotation_frame_position)
+
+            transformed_positions[index] = gemmi.Position(transformed_vector[0] + self.com_moving[0],
+                                                          transformed_vector[1] + self.com_moving[1],
+                                                          transformed_vector[2] + self.com_moving[2])
+
+        return transformed_positions
+
+    @staticmethod
+    def from_translation_rotation(translation, rotation, com_reference, com_moving):
+        transform = gemmi.Transform()
+        transform.vec.fromlist(translation.tolist())
+        transform.mat.fromlist(rotation.as_matrix().tolist())
+
+        return TransformGlobal(transform, com_reference, com_moving)
+
+    @staticmethod
+    def from_residues(previous_res, current_res, next_res, previous_ref, current_ref, next_ref):
+        previous_ca_pos = previous_res["CA"][0].pos
+        current_ca_pos = current_res["CA"][0].pos
+        next_ca_pos = next_res["CA"][0].pos
+
+        previous_ref_ca_pos = previous_ref["CA"][0].pos
+        current_ref_ca_pos = current_ref["CA"][0].pos
+        next_ref_ca_pos = next_ref["CA"][0].pos
+
+        matrix = np.array([
+            TransformGlobal.pos_to_list(previous_ca_pos),
+            TransformGlobal.pos_to_list(current_ca_pos),
+            TransformGlobal.pos_to_list(next_ca_pos),
+        ])
+        matrix_ref = np.array([
+            TransformGlobal.pos_to_list(previous_ref_ca_pos),
+            TransformGlobal.pos_to_list(current_ref_ca_pos),
+            TransformGlobal.pos_to_list(next_ref_ca_pos),
+        ])
+
+        mean = np.mean(matrix, axis=0)
+        mean_ref = np.mean(matrix_ref, axis=0)
+
+        # vec = mean_ref - mean
+        vec = np.array([0.0, 0.0, 0.0])
+
+        de_meaned = matrix - mean
+        de_meaned_ref = matrix_ref - mean_ref
+
+        rotation, rmsd = scipy.spatial.transform.Rotation.align_vectors(de_meaned, de_meaned_ref)
+
+        com_reference = mean_ref
+        com_moving = mean
+
+        return TransformGlobal.from_translation_rotation(vec, rotation, com_reference, com_moving)
+
+    @staticmethod
+    def pos_to_list(pos: gemmi.Position):
+        return [pos[0], pos[1], pos[2]]
+
+    @staticmethod
+    def from_start_residues(current_res, next_res, current_ref, next_ref):
+        current_ca_pos = current_res["CA"][0].pos
+        next_ca_pos = next_res["CA"][0].pos
+
+        current_ref_ca_pos = current_ref["CA"][0].pos
+        next_ref_ca_pos = next_ref["CA"][0].pos
+
+        matrix = np.array([
+            TransformGlobal.pos_to_list(current_ca_pos),
+            TransformGlobal.pos_to_list(next_ca_pos),
+        ])
+        matrix_ref = np.array([
+            TransformGlobal.pos_to_list(current_ref_ca_pos),
+            TransformGlobal.pos_to_list(next_ref_ca_pos),
+        ])
+
+        mean = np.mean(matrix, axis=0)
+        mean_ref = np.mean(matrix_ref, axis=0)
+
+        # vec = mean_ref - mean
+        vec = np.array([0.0, 0.0, 0.0])
+
+        de_meaned = matrix - mean
+        de_meaned_ref = matrix_ref - mean_ref
+
+        rotation, rmsd = scipy.spatial.transform.Rotation.align_vectors(de_meaned, de_meaned_ref)
+
+        com_reference = mean_ref
+
+        com_moving = mean
+
+        return TransformGlobal.from_translation_rotation(vec, rotation, com_reference, com_moving)
+
+    @staticmethod
+    def from_atoms(dataset_selection,
+                   reference_selection,
+                   com_dataset,
+                   com_reference,
+                   ):
+
+        # mean = np.mean(dataset_selection, axis=0)
+        # mean_ref = np.mean(reference_selection, axis=0)
+        mean = np.array(com_dataset)
+        mean_ref = np.array(com_reference)
+
+        # vec = mean_ref - mean
+        vec = np.array([0.0, 0.0, 0.0])
+
+        de_meaned = dataset_selection - mean
+        de_meaned_ref = reference_selection - mean_ref
+
+        rotation, rmsd = scipy.spatial.transform.Rotation.align_vectors(de_meaned, de_meaned_ref)
+
+        com_reference = mean_ref
+
+        com_moving = mean
+
+        return TransformGlobal.from_translation_rotation(vec, rotation, com_reference, com_moving)
+
+    @staticmethod
+    def from_finish_residues(previous_res, current_res, previous_ref, current_ref):
+        previous_ca_pos = previous_res["CA"][0].pos
+        current_ca_pos = current_res["CA"][0].pos
+
+        previous_ref_ca_pos = previous_ref["CA"][0].pos
+        current_ref_ca_pos = current_ref["CA"][0].pos
+
+        matrix = np.array([
+            TransformGlobal.pos_to_list(previous_ca_pos),
+            TransformGlobal.pos_to_list(current_ca_pos),
+        ])
+        matrix_ref = np.array([
+            TransformGlobal.pos_to_list(previous_ref_ca_pos),
+            TransformGlobal.pos_to_list(current_ref_ca_pos),
+        ])
+
+        mean = np.mean(matrix, axis=0)
+        mean_ref = np.mean(matrix_ref, axis=0)
+
+        # vec = mean_ref - mean
+        vec = np.array([0.0, 0.0, 0.0])
+
+        de_meaned = matrix - mean
+        de_meaned_ref = matrix_ref - mean_ref
+
+        rotation, rmsd = scipy.spatial.transform.Rotation.align_vectors(de_meaned, de_meaned_ref)
+
+        com_reference = mean_ref
+
+        com_moving = mean
+
+        return TransformGlobal.from_translation_rotation(vec, rotation, com_reference, com_moving)
 
 
 # @dataclass()

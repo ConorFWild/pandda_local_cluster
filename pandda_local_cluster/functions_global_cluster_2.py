@@ -6,6 +6,7 @@ import numpy as np
 import gemmi
 import scipy
 import joblib
+import itertools
 
 
 def get_global_alignments(datasets, reference, ):
@@ -155,18 +156,6 @@ def get_transformed_sample_region(
     rotated_centroid_to_origin = np.matmul(transform_mat, centroid_to_origin)
     print(f"rotated_centroid_to_origin: {rotated_centroid_to_origin}")
 
-    # offset = (gridding / 2).reshape(3, 1)
-    # print(f"offset: {offset}")
-    #
-    # rotated_offset = np.matmul(transform_mat, offset).flatten()
-    # print(f"rotated_offset: {rotated_offset}")
-    #
-    # dataset_centroid = (origin + gridding / 2) + transform_vec
-    # print(f"dataset_centroid: {dataset_centroid}")
-    #
-    # dataset_centroid_offset = dataset_centroid - rotated_offset
-    # print(f"Sampling from: {dataset_centroid_offset}")
-
     rotated_origin = centroid + rotated_centroid_to_origin
     print(f"rotated_origin: {rotated_origin}")
 
@@ -215,7 +204,6 @@ def perturb_sample_region(transformed_sample_region, perturbation):
     rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
 
     # Package them as a transform
-
     transform = gemmi.Transform()
     transform.vec.fromlist(transformation_perturbation.tolist())
     transform.mat.fromlist(rotation_perturbation_mat.tolist())
@@ -419,96 +407,256 @@ def get_mask(dataset: Dataset, alignment, sample_region, structure_factors,
     return mask
 
 
-def sample_datasets_global(datasets: Datasets, alignments, structure_factors, grid_step,
-                           sample_rate,
-                           cutoff):
+def get_alignment(reference: gemmi.Structure, other: gemmi.Structure, monomerized=False):
+    ca_self = []
+    ca_other = []
+
+    # Get CAs
+    matched = 0
+    total = 0
+    for model in reference:
+        for chain in model:
+            for res_self in chain.get_polymer():
+                if 'LIG' in str(res_self):
+                    print('Skipping Ligand...')
+                    continue
+
+                total += 1
+
+                try:
+                    current_res_id = ResidueID.from_residue_chain(model, chain, res_self)
+                    if monomerized:
+                        # print(other.structure[current_res_id.model])
+                        # print(len(other.structure[current_res_id.model]))
+                        res_other = other[current_res_id.model][0][current_res_id.insertion][0]
+                    else:
+                        res_other = \
+                            other[current_res_id.model][current_res_id.chain][current_res_id.insertion][0]
+                    # print(f'{self.structure}|{res_self}')
+                    # print(f'{other.structure}|{res_other}')
+                    self_ca_pos = res_self["CA"][0].pos
+                    other_ca_pos = res_other["CA"][0].pos
+
+                    matched += 1
+
+                except Exception as e:
+                    print(f"Exception: {e}")
+                    print('Skipping, Residue not found in chain')
+                    continue
+
+                ca_list_self = TransformGlobal.pos_to_list(self_ca_pos)
+                ca_list_other = TransformGlobal.pos_to_list(other_ca_pos)
+
+                ca_self.append(ca_list_self)
+                ca_other.append(ca_list_other)
+
+    print(f"Aligned {matched} of {total}")
+
+    # Make coord matricies
+    matrix_self = np.array(ca_self)
+    matrix_other = np.array(ca_other)
+
+    # Find means
+    mean_self = np.mean(matrix_self, axis=0)
+    mean_other = np.mean(matrix_other, axis=0)
+
+    # demaen
+    de_meaned_self = matrix_self - mean_self
+    de_meaned_other = matrix_other - mean_other
+
+    # Align
+    rotation, rmsd = scipy.spatial.transform.Rotation.align_vectors(de_meaned_self, de_meaned_other)
+
+    # Get transform
+    vec = np.array([0.0, 0.0, 0.0])
+    # Transform is from other frame to self frame
+    transform = TransformGlobal.from_translation_rotation(vec,
+                                                          rotation,
+                                                          mean_other,
+                                                          mean_self,
+                                                          )
+
+    return transform
+
+
+def resample(
+        reference_xmap: gemmi.FloatGrid,
+        moving_xmap: gemmi.FloatGrid,
+        reference_structure: gemmi.Structure,
+        moving_structure: gemmi.Structure,
+        monomerized=False,
+):
+    # Get transform: from ref to align
+    transform = get_alignment(moving_structure, reference_structure, monomerized=monomerized)
+    print(f"Transform: {transform}; {transform.transform.vec} {transform.transform.mat}")
+
+    interpolated_grid = gemmi.FloatGrid(
+        reference_xmap.nu,
+        reference_xmap.nv,
+        reference_xmap.nw,
+    )
+    interpolated_grid.set_unit_cell(reference_xmap.unit_cell)
+    interpolated_grid.spacegroup = reference_xmap.spacegroup
+
+    # points
+    mask = gemmi.FloatGrid(reference_xmap.nu,
+                           reference_xmap.nv,
+                           reference_xmap.nw, )
+    mask.set_unit_cell(reference_xmap.unit_cell)
+    mask.spacegroup = gemmi.find_spacegroup_by_name("P 1")
+
+    for model in reference_structure:
+        for chain in model:
+            for residue in chain.get_polymer():
+                for atom in residue:
+                    mask.set_points_around(atom.pos, 3.0, 1.0)
+
+    mask_array = np.array(mask)
+    mask_indicies = np.hstack([x.reshape((len(x), 1)) for x in np.nonzero(mask)])
+    print(f"Mask indicies shape: {mask_indicies.shape}")
+
+    fractional_coords = []
+    for model in reference_structure:
+        for chain in model:
+            for residue in chain.get_polymer():
+                for atom in residue:
+                    fractional = reference_xmap.unit_cell.fractionalize(atom.pos)
+                    fractional_coords.append([fractional.x, fractional.y, fractional.z])
+
+    fractional_coords_array = np.array(fractional_coords)
+    max_coord = np.max(fractional_coords_array, axis=0)
+    min_coord = np.min(fractional_coords_array, axis=0)
+
+    min_index = np.floor(min_coord * np.array([interpolated_grid.nu, interpolated_grid.nv, interpolated_grid.nw]))
+    max_index = np.floor(max_coord * np.array([interpolated_grid.nu, interpolated_grid.nv, interpolated_grid.nw]))
+
+    points = itertools.product(range(int(min_index[0]), int(max_index[0])),
+                               range(int(min_index[1]), int(max_index[1])),
+                               range(int(min_index[2]), int(max_index[2])),
+                               )
+
+    # Unpack the points, poitions and transforms
+    point_list: List[Tuple[int, int, int]] = []
+    position_list: List[Tuple[float, float, float]] = []
+    transform_list: List[gemmi.transform] = []
+    com_moving_list: List[np.array] = []
+    com_reference_list: List[np.array] = []
+
+    transform_rotate_reference_to_moving = transform.transform
+    transform_rotate_reference_to_moving.vec.fromlist([0.0, 0.0, 0.0])
+
+    transform_reference_to_centered = gemmi.Transform()
+    transform_reference_to_centered.vec.fromlist((-transform.com_reference).tolist())
+    transform_reference_to_centered.mat.fromlist(np.eye(3).tolist())
+
+    tranform_centered_to_moving = gemmi.Transform()
+    tranform_centered_to_moving.vec.fromlist(transform.com_moving.tolist())
+    tranform_centered_to_moving.mat.fromlist(np.eye(3).tolist())
+
+    # indicies to positions
+    for point in points:
+        if mask.get_value(*point) < 1.0:
+            continue
+
+        # get position
+        position = interpolated_grid.get_position(*point)
+
+        # Tranform to origin frame
+        position_origin_reference = gemmi.Position(transform_reference_to_centered.apply(position))
+
+        # Rotate
+        position_origin_moving = gemmi.Position(transform_rotate_reference_to_moving.apply(position_origin_reference))
+
+        # Transform to moving frame
+        position_moving = gemmi.Position(tranform_centered_to_moving.apply(position_origin_moving))
+
+        # Interpolate moving map
+        interpolated_map_value = moving_xmap.interpolate_value(position_moving)
+
+        # Set original point
+        interpolated_grid.set_value(point[0], point[1], point[2], interpolated_map_value)
+
+    interpolated_grid.symmetrize_max()
+
+    return interpolated_grid
+
+
+def get_xmap(dataset: Dataset, structure_factors, sample_rate):
+    reflections: gemmi.Mtz = dataset.reflections
+    unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+        structure_factors.f,
+        structure_factors.phi,
+        sample_rate=sample_rate,
+    )
+    unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
+    std = np.std(unaligned_xmap_array)
+    unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
+
+    return unaligned_xmap
+
+
+def get_rscc(_reference_sample, _sample):
+    reference_sample_mean = np.mean(_reference_sample)
+    reference_sample_demeaned = _reference_sample - reference_sample_mean
+    reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
+
+    sample_mean = np.mean(_sample)
+    sample_demeaned = _sample - sample_mean
+    sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
+
+    nominator = np.sum(reference_sample_demeaned * sample_demeaned)
+    denominator = sample_denominator * reference_sample_denominator
+
+    correlation = nominator / denominator
+
+    return correlation
+
+
+def sample_datasets_global(
+        datasets: Datasets,
+        structure_factors,
+        grid_step,
+        sample_rate,
+        cutoff,
+):
     def get_reference(datasets: Datasets):
         return list(datasets.values())[0]
 
     samples: MutableMapping[str, np.ndarray] = {}
 
-    # Define initial datasets
-    datasets_to_sample = {dtag: dataset for dtag, dataset in datasets.items()}
+    reference = get_reference(datasets)
 
-    # While there are unaligned datasets
-    num_datasets = len(datasets)
-    print(f"\tGot {len(datasets)} datasets to process")
+    reference_xmap = get_xmap(
+        reference,
+        structure_factors,
+        sample_rate,
+    )
 
-    while len(samples) < num_datasets:
-        dtag_array = list(datasets_to_sample.keys())
+    reference_structure = reference.structure
 
-        # Choose a reference
-        reference = get_reference(datasets_to_sample)
-        print(f"\t\tRegerence is: {reference.dtag}")
+    moving_xmaps = map(lambda dataset: get_xmap(dataset, structure_factors, sample_rate), datasets.values())
 
-        # get sample region
-        sample_region = get_sample_region(reference, grid_step, margin=2.5)
-        print(f"\t\tSample region is: {sample_region}")
+    moving_structures = [dataset.structure for dataset in datasets.values()]
 
-        alignments = get_global_alignments(datasets_to_sample, reference)
+    grids = map(
+        lambda moving: resample(
+            reference_xmap,
+            moving[0],
+            reference_structure,
+            moving[1],
+        ),
+        zip(
+            moving_xmaps,
+            moving_structures
+        ),
+    )
 
-        # sample mask
-        sample_mask = get_mask(reference,
-                               alignments[reference.dtag],
-                               sample_region,
-                               structure_factors,
-                               sample_rate)
+    samples = {dtag: np.array(grid, copy=True) for dtag, grid in zip(datasets.keys(), grids)}
 
-        # Sample reference
-        reference_sample = sample_reference_dataset_global(reference,
-                                                           alignments[reference.dtag],
-                                                           sample_region,
-                                                           structure_factors,
-                                                           sample_rate,
-                                                           sample_mask,
-                                                           )
+    rsccs = {dtag: get_rscc(samples[reference.dtag], sample) for dtag, sample in samples.items()}
 
-        # Sample datasets
-        arrays = joblib.Parallel(
-            verbose=50,
-            n_jobs=-1,
-        )(
-            joblib.delayed(refine_sample_dataset_global)(
-                datasets_to_sample[dtag],
-                alignments[dtag],
-                sample_region,
-                reference_sample,
-                structure_factors,
-                sample_rate
-            )
-            for dtag
-            in dtag_array
-        )
-
-        # Update datasets to align
-        for j, dtag in enumerate(dtag_array):
-            print(f"\tDtag: {dtag}")
-
-            rscc = arrays[j][0]
-            print(f"\t\tDtag rscc: {rscc}")
-
-            array = arrays[j][1]
-
-            perturbation = arrays[j][2]
-            print(f"\t\tDtag perterbation: {perturbation}")
-
-            transformed_sample_region = arrays[j][3]
-            print(f"\t\tDtag transformed sample region: {transformed_sample_region}")
-
-            transformed_sample_region = arrays[j][3]
-            print(f"\t\tDtag transformed sample region: {transformed_sample_region}")
-
-            initial_rscc = arrays[j][4]
-            print(f"\t\tDtag initial rscc: {initial_rscc}")
-
-            perturbed_sample_region = perturb_sample_region(transformed_sample_region, perturbation)
-            print(f"\t\tDtag perturbed sample region: {perturbed_sample_region}")
-
-            if rscc > cutoff:
-                samples[dtag] = array
-                del datasets_to_sample[dtag]
-            else:
-                continue
+    for dtag, rscc in rsccs.items():
+        print(f"{dtag}: {rscc}")
 
     return samples
 
@@ -611,7 +759,6 @@ def run_global_cluster(
 
     sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_global(
         truncated_datasets,
-        alignments,
         params.structure_factors,
         params.grid_spacing,
         params.sample_rate,
@@ -656,6 +803,22 @@ def run_global_cluster(
         distance_matrix,
         out_dir / f"embed.png"
     )
+
+    save_embed_umap_plot(
+        distance_matrix,
+        out_dir / f"embed_umap.png"
+    )
+
+    save_umap_plot(
+        distance_matrix,
+        out_dir / f"umap.png"
+    )
+
+    # Interactive plots
+    labels = list(sample_arrays.keys())
+    save_plot_tsne_bokeh(distance_matrix, labels, out_dir / f"embed.html")
+    save_plot_umap_bokeh(distance_matrix, labels, out_dir / f"umap.html")
+    save_plot_pca_umap_bokeh(distance_matrix, labels, out_dir / f"pca_umap.html")
 
     # Store resullts
     clusters = {

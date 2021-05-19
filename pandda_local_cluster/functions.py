@@ -13,6 +13,8 @@ import hdbscan
 from scipy.cluster import hierarchy
 from sklearn import decomposition
 from sklearn import manifold
+import umap
+from bokeh.plotting import ColumnDataSource, figure, output_file, show
 
 # Custom
 from pandda_local_cluster.datatypes import *
@@ -209,7 +211,6 @@ def get_dataset_from_dir(
         structure_path: Optional[Path] = get_path_from_regex(directory, structure_regex)
         reflections_path: Optional[Path] = get_path_from_regex(directory, reflections_regex)
         smiles_path: Optional[Path] = get_path_from_regex(directory, smiles_regex)
-
 
         if structure_path and reflections_path:
 
@@ -1280,10 +1281,24 @@ def save_dtag_array(dtag_array, path):
 
 
 def embed(distance_matrix):
-    pca = decomposition.PCA(n_components=50)
+    pca = decomposition.PCA(n_components=min(distance_matrix.shape[0], 50))
     tsne = manifold.TSNE(n_components=2)
     transform = pca.fit_transform(distance_matrix)
     transform = tsne.fit_transform(transform)
+    return transform
+
+
+def embed_umap(distance_matrix):
+    pca = decomposition.PCA(n_components=min(distance_matrix.shape[0], 50))
+    reducer = umap.UMAP()
+    transform = pca.fit_transform(distance_matrix)
+    transform = reducer.fit_transform(transform)
+    return transform
+
+
+def embed_umap_no_pca(distance_matrix):
+    reducer = umap.UMAP()
+    transform = reducer.fit_transform(distance_matrix)
     return transform
 
 
@@ -1432,8 +1447,71 @@ def save_num_clusters_stacked_bar_plot(clustering_dict, plot_file):
     plt.close(fig)
 
 
+def bokeh_scatter_plot(embedding, labels, plot_file):
+    output_file(str(plot_file))
+
+    source = ColumnDataSource(
+        data=dict(
+            x=embedding[:, 0].tolist(),
+            y=embedding[:, 1].tolist(),
+            desc=labels,
+        ))
+
+    TOOLTIPS = [
+        ("index", "$index"),
+        ("(x,y)", "($x, $y)"),
+        ("desc", "@desc"),
+    ]
+
+    p = figure(plot_width=1200, plot_height=1200, tooltips=TOOLTIPS,
+               title="Mouse over the dots")
+
+    p.circle('x', 'y', size=15, source=source)
+
+    show(p)
+
+
+def save_plot_tsne_bokeh(dataset_connectivity_matrix, labels, plot_file):
+    embedding = embed(dataset_connectivity_matrix)
+    bokeh_scatter_plot(embedding, labels, plot_file)
+
+
+def save_plot_pca_umap_bokeh(dataset_connectivity_matrix, labels, plot_file):
+    embedding = embed_umap(dataset_connectivity_matrix)
+    bokeh_scatter_plot(embedding, labels, plot_file)
+
+
+def save_plot_umap_bokeh(dataset_connectivity_matrix, labels, plot_file):
+    embedding = embed_umap_no_pca(dataset_connectivity_matrix)
+    bokeh_scatter_plot(embedding, labels, plot_file)
+
+
 def save_embed_plot(dataset_connectivity_matrix, plot_file):
     embedding = embed(dataset_connectivity_matrix)
+
+    fig, ax = plt.subplots(figsize=(60, 60))
+
+    ax.scatter(embedding[:, 0], embedding[:, 1])
+
+    fig.savefig(str(plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_embed_umap_plot(dataset_connectivity_matrix, plot_file):
+    embedding = embed_umap(dataset_connectivity_matrix)
+
+    fig, ax = plt.subplots(figsize=(60, 60))
+
+    ax.scatter(embedding[:, 0], embedding[:, 1])
+
+    fig.savefig(str(plot_file))
+    fig.clear()
+    plt.close(fig)
+
+
+def save_umap_plot(dataset_connectivity_matrix, plot_file):
+    embedding = embed_umap_no_pca(dataset_connectivity_matrix)
 
     fig, ax = plt.subplots(figsize=(60, 60))
 
