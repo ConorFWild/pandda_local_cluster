@@ -163,7 +163,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     log_paths: List[Path] = list(
         map(
             lambda _: get_log_path(*_),
-            zip(dataset_dirs, out_dir)
+            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
         )
     )
     if debug: print(f"Got {len(log_paths)} log paths. Log path example: {log_paths[0]}")
@@ -171,7 +171,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     output_paths: List[Path] = list(
         map(
             lambda _: get_output_path(*_),
-            zip(dataset_dirs, out_dir)
+            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
         )
     )
     if debug:
@@ -180,7 +180,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     error_paths: List[Path] = list(
         map(
             lambda _: get_error_path(*_),
-            zip(dataset_dirs, out_dir)
+            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
         )
     )
     if debug:
