@@ -98,6 +98,7 @@ def get_error_path(dataset_dir: Path, out_dir: Path):
     error_path = out_dir / Constants.error_path.format(system=dataset_dir.name)
     return error_path
 
+
 def get_dataset_out_path(dataset_dir: Path, out_dir: Path):
     error_path = out_dir / Constants.dataset_out_path.format(system=dataset_dir.name)
     return error_path
@@ -144,7 +145,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     dataset_out_paths: List[Path] = list(
         map(
             lambda _: get_dataset_out_path(*_),
-            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs))
         )
     )
     if debug: print(f"Got {len(dataset_out_paths)} dataset out paths. Dataset out example: {dataset_out_paths[0]}")
@@ -178,7 +179,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     log_paths: List[Path] = list(
         map(
             lambda _: get_log_path(*_),
-            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs))
         )
     )
     if debug: print(f"Got {len(log_paths)} log paths. Log path example: {log_paths[0]}")
@@ -186,7 +187,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     output_paths: List[Path] = list(
         map(
             lambda _: get_output_path(*_),
-            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs))
         )
     )
     if debug:
@@ -195,7 +196,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     error_paths: List[Path] = list(
         map(
             lambda _: get_error_path(*_),
-            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs))
         )
     )
     if debug:
@@ -240,6 +241,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
 
     # submit
     map(execute, submit_commands)
+
 
 if __name__ == "__main__":
     fire.Fire(run)

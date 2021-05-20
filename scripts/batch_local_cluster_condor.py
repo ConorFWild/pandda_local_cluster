@@ -155,16 +155,16 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
         print(f"Got {len(run_script_paths)} run scrupt paths. run script path example: {run_script_paths[0]}")
 
     # write run script
-    map(lambda _: write(*_), zip(commands, run_script_paths))
+    list(map(lambda _: write(*_), zip(commands, run_script_paths)))
 
     # chmod
-    map(chmod, run_script_paths)
+    list(map(chmod, run_script_paths))
 
     # Get log, output and error paths
     log_paths: List[Path] = list(
         map(
             lambda _: get_log_path(*_),
-            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs))
         )
     )
     if debug: print(f"Got {len(log_paths)} log paths. Log path example: {log_paths[0]}")
@@ -172,7 +172,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     output_paths: List[Path] = list(
         map(
             lambda _: get_output_path(*_),
-            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs))
         )
     )
     if debug:
@@ -181,7 +181,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     error_paths: List[Path] = list(
         map(
             lambda _: get_error_path(*_),
-            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs))
         )
     )
     if debug:
@@ -214,7 +214,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
         print(f"Got {len(submit_script_paths)} submit script paths. Submit script example: {submit_script_paths[0]}")
 
     # write submit script
-    map(lambda _: write(*_), zip(submit_scripts, submit_script_paths))
+    list(map(lambda _: write(*_), zip(submit_scripts, submit_script_paths)))
 
     # chmod
     map(chmod, submit_script_paths)
@@ -225,7 +225,8 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
         print(f"Got {len(submit_commands)} submit commands. Submit command example: {submit_commands[0]}")
 
     # submit
-    map(execute, submit_commands)
+    list(map(execute, submit_commands))
+
 
 if __name__ == "__main__":
     fire.Fire(run)
