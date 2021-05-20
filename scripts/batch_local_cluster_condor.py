@@ -227,5 +227,5 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     # submit
     map(execute, submit_commands)
 
-    if __name__ == "__main__":
-        fire.Fire(run)
+if __name__ == "__main__":
+    fire.Fire(run)
