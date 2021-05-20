@@ -15,6 +15,7 @@ class Constants:
     global_cluster_command = "{python} {script_path} {data_dir} {out_dir}"
 
     run_script_path = "{system}.sh"
+    dataset_out_path = "{system}"
     log_path = "{system}.log"
     output_path = "{system}.out"
     error_path = "{system}.err"
@@ -97,6 +98,10 @@ def get_error_path(dataset_dir: Path, out_dir: Path):
     error_path = out_dir / Constants.error_path.format(system=dataset_dir.name)
     return error_path
 
+def get_dataset_out_path(dataset_dir: Path, out_dir: Path):
+    error_path = out_dir / Constants.dataset_out_path.format(system=dataset_dir.name)
+    return error_path
+
 
 def get_submit_script(run_script_file: Path, log_file: Path, output_file: Path, error_file: Path, request_memory: int):
     submit_script = Constants.submit_script.format(
@@ -135,11 +140,20 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     if debug:
         print(f"Got {len(dataset_dirs)} dataset dirs. Dataset dir example: {dataset_dirs[0]}")
 
+    # Get log, output and error paths
+    dataset_out_paths: List[Path] = list(
+        map(
+            lambda _: get_dataset_out_path(*_),
+            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
+        )
+    )
+    if debug: print(f"Got {len(dataset_out_paths)} dataset out paths. Dataset out example: {dataset_out_paths[0]}")
+
     # get commands
     commands: List[str] = list(
         map(
             lambda _: get_command(*_),
-            zip(dataset_dirs, [out_dir] * len(dataset_dirs)),
+            zip(dataset_dirs, dataset_out_paths),
         ))
     if debug:
         print(f"Got {len(commands)} commands. Command example: {commands[0]}")
