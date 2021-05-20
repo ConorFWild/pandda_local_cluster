@@ -684,6 +684,9 @@ def run_global_cluster(
     data_dir = Path(data_dir)
     out_dir = Path(out_dir)
 
+    if not out_dir.exists():
+        os.mkdir(str(out_dir))
+
     if params.debug:
         print(
             (
