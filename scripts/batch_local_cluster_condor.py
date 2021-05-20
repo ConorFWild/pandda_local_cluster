@@ -111,7 +111,7 @@ def get_submit_script(run_script_file: Path, log_file: Path, output_file: Path, 
 
 
 def get_submit_script_path(dataset_dir_path: Path, out_dir: Path):
-    submit_script_path = out_dir / Constants.submit_script_name.format(dataset_dir_path.name)
+    submit_script_path = out_dir / Constants.submit_script_name.format(system=dataset_dir_path.name)
 
     return submit_script_path
 
@@ -164,7 +164,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     log_paths: List[Path] = list(
         map(
             lambda _: get_log_path(*_),
-            zip(dataset_dirs, out_dir)
+            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
         )
     )
     if debug: print(f"Got {len(log_paths)} log paths. Log path example: {log_paths[0]}")
@@ -172,7 +172,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     output_paths: List[Path] = list(
         map(
             lambda _: get_output_path(*_),
-            zip(dataset_dirs, out_dir)
+            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
         )
     )
     if debug:
@@ -181,7 +181,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     error_paths: List[Path] = list(
         map(
             lambda _: get_error_path(*_),
-            zip(dataset_dirs, out_dir)
+            zip(dataset_dirs, [out_dir]*len(dataset_dirs))
         )
     )
     if debug:

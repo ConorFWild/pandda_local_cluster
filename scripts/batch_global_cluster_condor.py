@@ -110,7 +110,7 @@ def get_submit_script(run_script_file: Path, log_file: Path, output_file: Path, 
 
 
 def get_submit_script_path(dataset_dir_path: Path, out_dir: Path):
-    submit_script_path = out_dir / Constants.submit_script_name.format(dataset_dir_path.name)
+    submit_script_path = out_dir / Constants.submit_script_name.format(system=dataset_dir_path.name)
 
     return submit_script_path
 
