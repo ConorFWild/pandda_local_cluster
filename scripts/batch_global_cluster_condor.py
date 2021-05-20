@@ -12,7 +12,10 @@ import fire
 
 class Constants:
     global_cluster_path = ""
-    global_cluster_command = "{python} {script_path} {data_dir} {out_dir}"
+    global_cluster_command = (
+        "#!/bin/bash\n"
+        "{python} {script_path} {data_dir} {out_dir}"
+    )
 
     run_script_path = "{system}.sh"
     dataset_out_path = "{system}"
