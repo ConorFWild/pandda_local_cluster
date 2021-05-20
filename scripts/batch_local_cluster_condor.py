@@ -217,7 +217,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     list(map(lambda _: write(*_), zip(submit_scripts, submit_script_paths)))
 
     # chmod
-    map(chmod, submit_script_paths)
+    list(map(chmod, submit_script_paths))
 
     # Submit command
     submit_commands: List[str] = list(map(get_submit_command, submit_script_paths))
