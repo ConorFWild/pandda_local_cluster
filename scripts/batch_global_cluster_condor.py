@@ -130,7 +130,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
         print(f"Datasets dir: {datasets_dir}; out_dir: {out_dir}; requested memory: {request_memory}")
 
     # Get dataset dirs
-    dataset_dirs = list(datasets_dir.glob("*."))
+    dataset_dirs = list(datasets_dir.glob("*"))
     if debug:
         print(f"Got {len(dataset_dirs)} dataset dirs. Dataset dir example: {dataset_dirs[0]}")
 
