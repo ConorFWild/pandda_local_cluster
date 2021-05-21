@@ -661,6 +661,72 @@ def sample_datasets_global(
     return samples
 
 
+def filter_sfs(dataset: Dataset, structure_factor: StructureFactors):
+    columns = dataset.reflections.column_labels()
+
+    if structure_factor.f in columns:
+        return True
+
+    else:
+        return False
+
+def filter_structure(dataset: Dataset, reference_dataset: Dataset):
+    ca_self = []
+    ca_other = []
+
+    # Get CAs
+    matched = 0
+    total = 0
+
+
+    reference = reference_dataset.structure
+    monomerized = False
+    other = dataset.structure
+
+    for model in reference:
+        for chain in model:
+            for res_self in chain.get_polymer():
+                if 'LIG' in str(res_self):
+                    print('Skipping Ligand...')
+                    continue
+
+                total += 1
+
+                try:
+                    current_res_id = ResidueID.from_residue_chain(model, chain, res_self)
+                    if monomerized:
+                        # print(other.structure[current_res_id.model])
+                        # print(len(other.structure[current_res_id.model]))
+                        res_other = other[current_res_id.model][0][current_res_id.insertion][0]
+                    else:
+                        res_other = \
+                            other[current_res_id.model][current_res_id.chain][current_res_id.insertion][0]
+                    # print(f'{self.structure}|{res_self}')
+                    # print(f'{other.structure}|{res_other}')
+                    self_ca_pos = res_self["CA"][0].pos
+                    other_ca_pos = res_other["CA"][0].pos
+
+                    matched += 1
+
+                except Exception as e:
+                    print(f"Exception: {e}")
+                    print('Skipping, Residue not found in chain')
+                    continue
+
+                ca_list_self = TransformGlobal.pos_to_list(self_ca_pos)
+                ca_list_other = TransformGlobal.pos_to_list(other_ca_pos)
+
+                ca_self.append(ca_list_self)
+                ca_other.append(ca_list_other)
+
+    if len(ca_other) > 3:
+        return True
+
+    else:
+        return False
+
+
+
 def run_global_cluster(
         data_dir: str,
         out_dir: str,
@@ -730,18 +796,34 @@ def run_global_cluster(
         print(f"Reference dataset for alignment is: {reference_dataset.dtag}")
         print(f"Reference reflection mtz columns are: {reference_dataset.reflections.column_labels()}")
 
+    # Filter valid structure factors
+    filtered_datasets_sfs = {
+        dtag: datasets[dtag]
+        for dtag
+        in filter(lambda dtag: filter_sfs(datasets[dtag], params.structure_factors), datasets)
+    }
+    print(f"Filtered datasets on structure factors: {[dtag for dtag in datasets if not dtag in filtered_datasets_sfs]}")
+
+    # Filter invalid structures
+    filtered_datasets_struc = {
+        dtag: filtered_datasets_sfs[dtag]
+        for dtag
+        in filter(lambda dtag: filter_structure(filtered_datasets_sfs[dtag], reference_dataset), filtered_datasets_sfs)
+    }
+    print(f"Filtered datasets on structure match: {[dtag for dtag in filtered_datasets_sfs if not dtag in filtered_datasets_struc]}")
+
     # B factor smooth the datasets
     smoothed_datasets: MutableMapping[str, Dataset] = smooth_datasets(
-        datasets,
+        filtered_datasets_struc,
         reference_dataset,
         params.structure_factors,
     )
 
     # Get the markers for alignment
-    markers: List[Marker] = get_markers(reference_dataset, markers)
+    # markers: List[Marker] = get_markers(reference_dataset, markers)
 
     # Find the alignments between the reference and all other datasets
-    alignments: MutableMapping[str, Alignment] = get_global_alignments(smoothed_datasets, reference_dataset, )
+    # alignments: MutableMapping[str, Alignment] = get_global_alignments(smoothed_datasets, reference_dataset, )
 
     # Truncate the datasets to the same reflections
     truncated_datasets: MutableMapping[str, Dataset] = get_truncated_datasets(
