@@ -11,6 +11,7 @@ import fire
 
 class Constants:
     global_cluster_command = (
+        "#!/bin/bash\n"
         "{python} {script_path} {data_dir} {out_dir}"
     )
 
