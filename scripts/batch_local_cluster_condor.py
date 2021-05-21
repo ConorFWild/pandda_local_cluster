@@ -1,5 +1,6 @@
 from typing import *
 
+import os
 import sys
 from pathlib import Path
 import itertools
@@ -53,7 +54,7 @@ def execute(command: str):
 
 
 def get_command(data_dir: Path, out_dir: Path):
-    script_path = Path(__file__).parent.parent / "pandda_local_cluster.py"
+    script_path = Path(os.path.realpath(__file__)).parent.parent / "pandda_local_cluster.py"
 
     python = sys.executable
 
