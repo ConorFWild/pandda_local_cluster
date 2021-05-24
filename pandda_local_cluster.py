@@ -45,6 +45,7 @@ from pandda_local_cluster.functions import (
     save_dtag_array,
     filter_sfs,
     filter_structure,
+    output_mean_maps_local
 )
 
 
@@ -196,27 +197,27 @@ def run_local_cluster(
                                           params.grid_size,
                                           params.grid_spacing,
                                           )
-        # sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined(
-        #     truncated_datasets,
-        #     marker,
-        #     alignments,
-        #     reference_sample,
-        #     params.structure_factors,
-        #     params.sample_rate,
-        #     params.grid_size,
-        #     params.grid_spacing,
-        # )
-        sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined_iterative(
+        sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined(
             truncated_datasets,
             marker,
             alignments,
-            known_apos,
+            reference_sample,
             params.structure_factors,
             params.sample_rate,
             params.grid_size,
             params.grid_spacing,
-            0.7
         )
+        # sample_arrays = sample_datasets_refined_iterative(
+        #     truncated_datasets,
+        #     marker,
+        #     alignments,
+        #     known_apos,
+        #     params.structure_factors,
+        #     params.sample_rate,
+        #     params.grid_size,
+        #     params.grid_spacing,
+        #     0.7
+        # )
         print(f"Got {len(sample_arrays)} samples")
 
         # Get the distance matrix
@@ -235,6 +236,11 @@ def run_local_cluster(
         )
 
         # Output
+        output_mean_maps_local(
+            sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
+            params.grid_size, params.grid_spacing, params.structure_factors, params.sample_rate
+        )
+
         save_distance_matrix(distance_matrix,
                              out_dir / f"{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}.npy")
 
@@ -265,6 +271,7 @@ def run_local_cluster(
         }
 
         print(f"Marker clusters: {marker_clusters}")
+
     # End loop over residues
 
     save_num_clusters_bar_plot(marker_clusters, out_dir / f"global_residue_cluster_bar.png")

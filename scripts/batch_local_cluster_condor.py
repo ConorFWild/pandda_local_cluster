@@ -129,7 +129,6 @@ def get_dataset_out_path(dataset_dir: Path, out_dir: Path):
     return error_path
 
 
-
 def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     #
     datasets_dir = Path(datasets_dir)

@@ -876,6 +876,8 @@ def sample_datasets_refined_iterative(
 
     truncated_datasets_length = len(truncated_datasets)
 
+    alignment_classes = {}
+
     while len(samples) < truncated_datasets_length:
         print(f"\tGot {len(datasets_to_process)} datasets left to align")
         dtag_array = list(datasets_to_process.keys())
@@ -909,18 +911,20 @@ def sample_datasets_refined_iterative(
         )
 
         for j, dtag in enumerate(dtag_array):
+            alignment_classes[dtag] = []
             rscc = arrays[j][0]
             array = arrays[j][1]
 
             if rscc > cutoff:
                 samples[dtag] = array
+                alignment_classes[dtag].append(array)
                 del datasets_to_process[dtag]
             else:
                 continue
 
     # samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
 
-    return samples
+    return samples, alignment_classes
 
 
 def get_corr(reference_sample_mask, sample_mask, diag):
@@ -1626,3 +1630,112 @@ def filter_structure(dataset: Dataset, reference_dataset: Dataset):
 
     else:
         return False
+
+
+def save_ccp4(path: Path, grid: gemmi.FloatGrid):
+    ccp4 = gemmi.Ccp4Map()
+    ccp4.grid = grid
+
+    ccp4.setup()
+
+    ccp4.update_ccp4_header(2, True)
+
+    ccp4.write_ccp4_map(str(path))
+
+
+def make_mean_map_local(
+        samples,
+        reference_dataset: Dataset,
+        marker: Marker,
+        grid_size,
+        grid_step,
+        structure_factors,
+        sample_rate,
+):
+    # Get the mean
+    samples_array = np.stack(samples, axis=0)
+    samples_mean = np.mean(samples, axis=0)
+
+    # Get a grid in the sample frame (defined by size and spacing because orthogonal)
+    sample_grid = gemmi.FloatGrid(grid_size, grid_size, grid_size)
+    sample_unit_cell = gemmi.UnitCell(
+        int((grid_size - 1) / grid_step),
+        int((grid_size - 1) / grid_step),
+        int((grid_size - 1) / grid_step),
+        90,
+        90,
+        90,
+    )
+    sample_grid.set_unit_cell(sample_unit_cell)
+
+    # Sample the mean onto the sample grid
+    for point in sample_grid:
+        u = point.u
+        v = point.v
+        w = point.w
+        value = samples_mean[u, v, w]
+
+        sample_grid.set_poiint(u, v, w, value)
+
+    # Get a grid in the reference frame
+    reflections: gemmi.Mtz = reference_dataset.reflections
+    unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+        structure_factors.f,
+        structure_factors.phi,
+        sample_rate=sample_rate,
+    )
+    reference_grid = gemmi.FloatGrid(unaligned_xmap.nu, unaligned_xmap.nv, unaligned_xmap.nw)
+    reference_grid.spacegroup = unaligned_xmap.spacegroup
+    reference_grid.set_unit_cell(unaligned_xmap.unit_cell)
+
+    # Mask the relevant reference frame grid points
+    reference_grid.set_points_around(
+        gemmi.Postion(marker.x, marker.y, marker.z),
+        1.0,
+    )
+
+    # Iterate over grid points, transforming into sample space, and
+    for point in reference_grid:
+        if point.value != 0.0:
+            pos = reference_grid.point_to_position(point)
+            pos_sample_frame = gemmi.Postion(
+                (pos.x - marker.x) - ((grid_size - 1) / grid_step),
+                (pos.y - marker.y) - ((grid_size - 1) / grid_step),
+                (pos.z - marker.z) - ((grid_size - 1) / grid_step),
+            )
+            interpolated_value = reference_grid.interpolate_point(pos_sample_frame)
+            reference_grid.set_value(
+                point.u,
+                point.v,
+                point.w,
+                interpolated_value
+            )
+
+    # Update symmetry
+    reference_grid.symmeterize_max()
+
+    # return
+    return reference_grid
+
+
+def output_mean_maps_local(sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
+                           grid_size, grid_step, structure_factors, sample_rate):
+    dtag_array = np.array(list(sample_arrays.keys()))
+    cluster_dtags: MutableMapping[int, List[str]] = {
+        cluster_num: [dtag for dtag in dtag_array[dataset_clusters == cluster_num]]
+        for cluster_num
+        in dataset_clusters
+    }
+
+    for cluster_num in cluster_dtags:
+        mean_map: gemmi.FloatGrid = make_mean_map_local(
+            [sample_arrays[dtag] for dtag in cluster_dtags[cluster_num]],
+            reference_dataset,
+            marker,
+            grid_size, grid_step, structure_factors, sample_rate
+        )
+
+        save_ccp4(
+            out_dir / f"mean_map_{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}_{cluster_num}.ccp4",
+            mean_map,
+        )

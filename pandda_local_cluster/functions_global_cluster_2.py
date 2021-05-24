@@ -651,7 +651,7 @@ def sample_datasets_global(
         ),
     )
 
-    samples = {dtag: np.array(grid, copy=True) for dtag, grid in zip(datasets.keys(), grids)}
+    samples = {dtag: grid for dtag, grid in zip(datasets.keys(), grids)}
 
     rsccs = {dtag: get_rscc(samples[reference.dtag], sample) for dtag, sample in samples.items()}
 
@@ -660,6 +660,32 @@ def sample_datasets_global(
 
     return samples
 
+
+def make_mean_map(grids: List[gemmi.FloatGrid]):
+    reference_xmap = grids[0]
+
+    arrays_list = [np.array(grid, copy=False) for grid in grids]
+
+    arrays = np.stack(arrays_list, axis=0)
+    mean_array = np.mean(arrays, axis=0)
+
+    mean_grid = gemmi.FloatGrid(
+        reference_xmap.nu,
+        reference_xmap.nv,
+        reference_xmap.nw,
+    )
+    mean_grid.set_unit_cell(reference_xmap.unit_cell)
+    mean_grid.spacegroup = reference_xmap.spacegroup
+
+    for point in mean_grid:
+        u = point.u
+        v = point.v
+        w = point.w
+        value = mean_array[u, v, w]
+
+        mean_grid.set_poiint(u, v, w, value)
+
+    return mean_grid
 
 
 def run_global_cluster(
@@ -672,6 +698,7 @@ def run_global_cluster(
         structure_regex="*.pdb",
         reflections_regex="*.mtz",
         cutoff=0.7,
+        output_mean_maps=False,
 ):
     # Update the Parameters
     params: Params = Params()
@@ -745,7 +772,8 @@ def run_global_cluster(
         for dtag
         in filter(lambda dtag: filter_structure(filtered_datasets_sfs[dtag], reference_dataset), filtered_datasets_sfs)
     }
-    print(f"Filtered datasets on structure match: {[dtag for dtag in filtered_datasets_sfs if not dtag in filtered_datasets_struc]}")
+    print(
+        f"Filtered datasets on structure match: {[dtag for dtag in filtered_datasets_sfs if not dtag in filtered_datasets_struc]}")
 
     # B factor smooth the datasets
     smoothed_datasets: MutableMapping[str, Dataset] = smooth_datasets(
@@ -777,13 +805,15 @@ def run_global_cluster(
     if params.debug:
         print(f"Getting sample arrays...")
 
-    sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_global(
+    sample_grids: MutableMapping[str, gemmi.FloatGrid] = sample_datasets_global(
         truncated_datasets,
         params.structure_factors,
         params.grid_spacing,
         params.sample_rate,
         cutoff=0.7,
     )
+
+    sample_arrays = {dtag: np.array(grid, copy=False) for dtag, grid in sample_grids.items()}
     print(f"Got {len(sample_arrays)} samples")
 
     # Get the distance matrix
@@ -800,6 +830,22 @@ def run_global_cluster(
         linkage,
         params.local_cluster_cutoff,
     )
+
+    if output_mean_maps:
+        dtag_array = np.array(list(sample_grids.keys()))
+        cluster_dtags: MutableMapping[int, List[str]] = {
+            cluster_num: [dtag for dtag in dtag_array[dataset_clusters == cluster_num]]
+            for cluster_num
+            in dataset_clusters
+        }
+
+        for cluster_num in cluster_dtags:
+            mean_map: gemmi.FloatGrid = make_mean_map([sample_grids[dtag] for dtag in cluster_dtags[cluster_num]])
+
+            save_ccp4(
+                out_dir / f"mean_map_{cluster_num}.ccp4",
+                mean_map,
+            )
 
     # Output
     save_distance_matrix(distance_matrix,
