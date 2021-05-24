@@ -43,6 +43,8 @@ from pandda_local_cluster.functions import (
     sample_datasets_refined_iterative,
     save_distance_matrix,
     save_dtag_array,
+    filter_sfs,
+    filter_structure,
 )
 
 
@@ -108,6 +110,23 @@ def run_local_cluster(
     reference_dataset: Dataset = get_reference(datasets, reference_dtag, known_apos)
     if params.debug:
         print(f"Reference dataset for alignment is: {reference_dataset.dtag}")
+
+    # Filter valid structure factors
+    filtered_datasets_sfs = {
+        dtag: datasets[dtag]
+        for dtag
+        in filter(lambda dtag: filter_sfs(datasets[dtag], params.structure_factors), datasets)
+    }
+    print(f"Filtered datasets on structure factors: {[dtag for dtag in datasets if not dtag in filtered_datasets_sfs]}")
+
+    # Filter invalid structures
+    filtered_datasets_struc = {
+        dtag: filtered_datasets_sfs[dtag]
+        for dtag
+        in filter(lambda dtag: filter_structure(filtered_datasets_sfs[dtag], reference_dataset), filtered_datasets_sfs)
+    }
+    print(
+        f"Filtered datasets on structure match: {[dtag for dtag in filtered_datasets_sfs if not dtag in filtered_datasets_struc]}")
 
     # B factor smooth the datasets
     smoothed_datasets: MutableMapping[str, Dataset] = smooth_datasets(
