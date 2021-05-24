@@ -165,7 +165,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     run_script_paths: List[Path] = list(
         map(
             lambda _: get_run_script_path(*_),
-            zip(dataset_dirs, [out_dir] * len(dataset_dirs)),
+            zip(dataset_dirs, out_dir),
         )
     )
     if debug:
