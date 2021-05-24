@@ -156,7 +156,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     commands: List[str] = list(
         map(
             lambda _: get_command(*_),
-            zip(dataset_dirs, [dataset_out_paths] * len(dataset_dirs)),
+            zip(dataset_dirs, dataset_out_paths),
         ))
     if debug:
         print(f"Got {len(commands)} commands. Command example: {commands[0]}")
@@ -165,7 +165,7 @@ def run(datasets_dir: str, out_dir: str, request_memory: int, debug=True):
     run_script_paths: List[Path] = list(
         map(
             lambda _: get_run_script_path(*_),
-            zip(dataset_dirs, out_dir),
+            zip(dataset_dirs, [out_dir] * len(dataset_dirs)),
         )
     )
     if debug:
