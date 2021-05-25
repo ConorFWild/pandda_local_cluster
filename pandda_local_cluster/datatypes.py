@@ -506,7 +506,7 @@ class Params:
     grid_spacing: float = 0.5
 
     # Dataset clusterings
-    local_cluster_cutoff: float = 0.6
+    local_cluster_cutoff: float = 0.3
     global_cluster_cutoff: float = 0.9
     min_dataset_cluster_size: int = 60
 
