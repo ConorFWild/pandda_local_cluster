@@ -771,6 +771,7 @@ def run_global_cluster(
                 f"\tMtz regex: {reflections_regex}\n"
                 f"\tStructure regex: {structure_regex}\n"
                 f"\tOutput mean maps: {output_mean_maps}\n"
+                f"\tCutoff: {params.local_cluster_cutoff}\n"
             )
         )
 
