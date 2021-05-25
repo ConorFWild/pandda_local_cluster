@@ -703,7 +703,7 @@ def make_mean_map(grids: List[gemmi.FloatGrid]):
         w = point.w
         value = mean_array[u, v, w]
 
-        mean_grid.set_poiint(u, v, w, value)
+        mean_grid.set_point(u, v, w, value)
 
     return mean_grid
 
