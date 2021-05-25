@@ -1675,7 +1675,7 @@ def make_mean_map_local(
         w = point.w
         value = samples_mean[u, v, w]
 
-        sample_grid.set_poiint(u, v, w, value)
+        sample_grid.set_value(u, v, w, value)
 
     # Get a grid in the reference frame
     reflections: gemmi.Mtz = reference_dataset.reflections
@@ -1690,7 +1690,7 @@ def make_mean_map_local(
 
     # Mask the relevant reference frame grid points
     reference_grid.set_points_around(
-        gemmi.Postion(marker.x, marker.y, marker.z),
+        gemmi.Position(marker.x, marker.y, marker.z),
         1.0,
     )
 
