@@ -642,6 +642,27 @@ def sample_datasets_global(
     def get_reference(datasets: Datasets):
         return list(datasets.values())[0]
 
+    def get_masked_sample(_reference_grid, _grid, _reference_structure):
+        mask = gemmi.FloatGrid(_reference_grid.nu,
+                               _reference_grid.nv,
+                               _reference_grid.nw, )
+        mask.set_unit_cell(_reference_grid.unit_cell)
+        mask.spacegroup = gemmi.find_spacegroup_by_name("P 1")
+
+        for model in _reference_structure:
+            for chain in model:
+                for residue in chain.get_polymer():
+                    for atom in residue:
+                        mask.set_points_around(atom.pos, 3.0, 1.0)
+
+        _reference_sample = np.array(_reference_grid, copy=False)
+        _sample = np.array(_grid, copy=False)
+        _mask = np.array(mask, copy=False)
+
+        sample_flattened = _sample[_mask != 0]
+
+        return sample_flattened
+
     samples: MutableMapping[str, np.ndarray] = {}
 
     reference = get_reference(datasets)
@@ -673,12 +694,14 @@ def sample_datasets_global(
 
     samples = {dtag: grid for dtag, grid in zip(datasets.keys(), grids)}
 
+    samples_masked = {dtag: get_masked_sample(samples[reference.dtag], sample, reference_structure) for dtag, sample in samples.items()}
+
     rsccs = {dtag: get_rscc(samples[reference.dtag], sample, reference_structure) for dtag, sample in samples.items()}
 
     for dtag, rscc in rsccs.items():
         print(f"{dtag}: {rscc}")
 
-    return samples
+    return samples, samples_masked
 
 
 def make_mean_map(grids: List[gemmi.FloatGrid]):
@@ -829,7 +852,7 @@ def run_global_cluster(
     if params.debug:
         print(f"Getting sample arrays...")
 
-    sample_grids: MutableMapping[str, gemmi.FloatGrid] = sample_datasets_global(
+    sample_grids, sample_arrays = sample_datasets_global(
         truncated_datasets,
         params.structure_factors,
         params.grid_spacing,
@@ -837,8 +860,8 @@ def run_global_cluster(
         cutoff=0.7,
     )
 
-    sample_arrays = {dtag: np.array(grid, copy=False) for dtag, grid in sample_grids.items()}
-    print(f"Got {len(sample_arrays)} samples")
+    # sample_arrays = {dtag: np.array(grid, copy=False) for dtag, grid in sample_grids.items()}
+    # print(f"Got {len(sample_arrays)} samples")
 
     # Get the distance matrix
     distance_matrix: np.ndarray = get_distance_matrix(sample_arrays)
