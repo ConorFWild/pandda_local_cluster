@@ -230,7 +230,7 @@ def run_local_cluster(
         distance_matrix: np.ndarray = get_distance_matrix(sample_arrays)
         if params.debug:
             print(f"First line of distance matrix: {distance_matrix[0, :]}")
-            print(f"Lasy line of distance matrix: {distance_matrix[-1, :]}")
+            print(f"Last line of distance matrix: {distance_matrix[-1, :]}")
 
         # Get the distance matrix linkage
         linkage: np.ndarray = get_linkage_from_correlation_matrix(distance_matrix)

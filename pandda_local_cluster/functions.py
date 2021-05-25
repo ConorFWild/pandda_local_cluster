@@ -837,7 +837,7 @@ def sample_datasets_refined(
         grid_spacing: float,
 ) -> MutableMapping[str, np.ndarray]:
     samples: MutableMapping[str, np.ndarray] = {}
-    arrays = joblib.Parallel(
+    results = joblib.Parallel(
         verbose=50,
         n_jobs=-1,
     )(
@@ -854,7 +854,7 @@ def sample_datasets_refined(
         for dtag, dataset
         in truncated_datasets.items()
     )
-    samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
+    samples = {dtag: result[1] for dtag, result in zip(truncated_datasets, results)}
 
     return samples
 
