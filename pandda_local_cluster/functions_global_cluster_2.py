@@ -595,13 +595,33 @@ def get_xmap(dataset: Dataset, structure_factors, sample_rate):
     return unaligned_xmap
 
 
-def get_rscc(_reference_sample, _sample):
-    reference_sample_mean = np.mean(_reference_sample)
-    reference_sample_demeaned = _reference_sample - reference_sample_mean
+def get_rscc(_reference_grid, _grid, reference_structure):
+
+    mask = gemmi.FloatGrid(_reference_grid.nu,
+                           _reference_grid.nv,
+                           _reference_grid.nw, )
+    mask.set_unit_cell(_reference_grid.unit_cell)
+    mask.spacegroup = gemmi.find_spacegroup_by_name("P 1")
+
+    for model in reference_structure:
+        for chain in model:
+            for residue in chain.get_polymer():
+                for atom in residue:
+                    mask.set_points_around(atom.pos, 3.0, 1.0)
+
+    _reference_sample = np.array(_reference_grid, copy=False)
+    _sample = np.array(_grid, copy=False)
+    _mask = np.array(mask, copy=False)
+
+    reference_flattened = _reference_sample[_mask!= 0]
+    sample_flattened = _sample[_mask!=0]
+
+    reference_sample_mean = np.mean(reference_flattened)
+    reference_sample_demeaned = reference_flattened - reference_sample_mean
     reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
 
-    sample_mean = np.mean(_sample)
-    sample_demeaned = _sample - sample_mean
+    sample_mean = np.mean(sample_flattened)
+    sample_demeaned = sample_flattened - sample_mean
     sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
 
     nominator = np.sum(reference_sample_demeaned * sample_demeaned)
@@ -653,7 +673,7 @@ def sample_datasets_global(
 
     samples = {dtag: grid for dtag, grid in zip(datasets.keys(), grids)}
 
-    rsccs = {dtag: get_rscc(samples[reference.dtag], sample) for dtag, sample in samples.items()}
+    rsccs = {dtag: get_rscc(samples[reference.dtag], sample, reference_structure) for dtag, sample in samples.items()}
 
     for dtag, rscc in rsccs.items():
         print(f"{dtag}: {rscc}")
@@ -698,7 +718,7 @@ def run_global_cluster(
         structure_regex="*.pdb",
         reflections_regex="*.mtz",
         cutoff=0.7,
-        output_mean_maps=False,
+        output_mean_maps: bool=False,
 ):
     # Update the Parameters
     params: Params = Params()
@@ -724,6 +744,10 @@ def run_global_cluster(
                 f"\tknown apos: {known_apos}\n"
                 f"\treference_dtag: {reference_dtag}\n"
                 f"\tmarkers: {markers}\n"
+                f"\tStructure factors: {params.structure_factors}\n"
+                f"\tMtz regex: {reflections_regex}\n"
+                f"\tStructure regex: {structure_regex}\n"
+                f"\tOutput mean maps: {output_mean_maps}\n"
             )
         )
 
@@ -832,6 +856,7 @@ def run_global_cluster(
     )
 
     if output_mean_maps:
+        print(f"Outputting mean maps...")
         dtag_array = np.array(list(sample_grids.keys()))
         cluster_dtags: MutableMapping[int, List[str]] = {
             cluster_num: [dtag for dtag in dtag_array[dataset_clusters == cluster_num]]
