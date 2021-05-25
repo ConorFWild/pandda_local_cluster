@@ -59,6 +59,7 @@ def run_local_cluster(
         structure_regex="*.pdb",
         reflections_regex="*.mtz",
         cutoff=0.7,
+        output_mean_maps: bool = False,
 ):
     # Update the Parameters
     params: Params = Params()
@@ -81,6 +82,11 @@ def run_local_cluster(
                 f"\tknown apos: {known_apos}\n"
                 f"\treference_dtag: {reference_dtag}\n"
                 f"\tmarkers: {markers}\n"
+                f"\tStructure factors: {params.structure_factors}\n"
+                f"\tMtz regex: {reflections_regex}\n"
+                f"\tStructure regex: {structure_regex}\n"
+                f"\tOutput mean maps: {output_mean_maps}\n"
+                f"\tCutoff: {params.local_cluster_cutoff}\n"
             )
         )
 
@@ -236,10 +242,12 @@ def run_local_cluster(
         )
 
         # Output
-        output_mean_maps_local(
-            sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
-            params.grid_size, params.grid_spacing, params.structure_factors, params.sample_rate
-        )
+        if output_mean_maps:
+            print(f"Outputing mean maps...")
+            output_mean_maps_local(
+                sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
+                params.grid_size, params.grid_spacing, params.structure_factors, params.sample_rate
+            )
 
         save_distance_matrix(distance_matrix,
                              out_dir / f"{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}.npy")

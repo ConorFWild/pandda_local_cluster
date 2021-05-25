@@ -740,7 +740,7 @@ def run_global_cluster(
         structure_factors="FWT,PHWT",
         structure_regex="*.pdb",
         reflections_regex="*.mtz",
-        cutoff=0.7,
+        cutoff: float =0.7,
         output_mean_maps: bool=False,
 ):
     # Update the Parameters
