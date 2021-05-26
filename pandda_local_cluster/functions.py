@@ -1691,6 +1691,7 @@ def make_mean_map_local(
     # Mask the relevant reference frame grid points
     reference_grid.set_points_around(
         gemmi.Position(marker.x, marker.y, marker.z),
+        3.0,
         1.0,
     )
 
