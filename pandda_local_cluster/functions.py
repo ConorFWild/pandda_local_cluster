@@ -1699,7 +1699,7 @@ def make_mean_map_local(
     for point in reference_grid:
         if point.value != 0.0:
             pos = reference_grid.point_to_position(point)
-            pos_sample_frame = gemmi.Postion(
+            pos_sample_frame = gemmi.Position(
                 (pos.x - marker.x) - ((grid_size - 1) / grid_step),
                 (pos.y - marker.y) - ((grid_size - 1) / grid_step),
                 (pos.z - marker.z) - ((grid_size - 1) / grid_step),
