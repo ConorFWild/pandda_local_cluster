@@ -1704,7 +1704,7 @@ def make_mean_map_local(
                 (pos.y - marker.y) - ((grid_size - 1) / grid_step),
                 (pos.z - marker.z) - ((grid_size - 1) / grid_step),
             )
-            interpolated_value = reference_grid.interpolate_point(pos_sample_frame)
+            interpolated_value = reference_grid.interpolate_value(pos_sample_frame)
             reference_grid.set_value(
                 point.u,
                 point.v,
