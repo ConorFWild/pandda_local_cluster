@@ -1713,7 +1713,7 @@ def make_mean_map_local(
             )
 
     # Update symmetry
-    reference_grid.symmeterize_max()
+    reference_grid.symmetrize_max()
 
     # return
     return reference_grid
