@@ -1835,9 +1835,9 @@ def make_mean_map_local(
 
     centroid_position_unnormalised = gemmi.Position(marker.x, marker.y, marker.z)
     centroid_position_fractional_unnormalized = reference_grid.unit_cell.fractionalize(centroid_position_unnormalised)
-    centroid_position_fractional = gemmi.Fractional(centroid_position_fractional_unnormalized.x,
-                                                    centroid_position_fractional_unnormalized.y,
-                                                    centroid_position_fractional_unnormalized.z,
+    centroid_position_fractional = gemmi.Fractional(centroid_position_fractional_unnormalized.x % 1,
+                                                    centroid_position_fractional_unnormalized.y % 1,
+                                                    centroid_position_fractional_unnormalized.z % 1,
                                                     )
     centroid_position = reference_grid.unit_cell.orthogonalize(centroid_position_fractional)
     print(f"\t\tCentroid position: {centroid_position}")
