@@ -942,6 +942,7 @@ def sample_dataset_refined(
     # )
 
     print(f"Initial rscc was: {initial_rscc}; Refinement is: {res}")
+    print(f"Initial centroid was : {dataset_centroid}; Initial scalerotation was: {scale_transform_mat}; perturbation was {res.x}")
 
     # sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
 
