@@ -1831,8 +1831,29 @@ def make_mean_map_local(
 
     mask_grid.symmetrize_max()
 
-    centroid_position = gemmi.Position(marker.x, marker.y, marker.z)
+
+
+    centroid_position_unnormalised = gemmi.Position(marker.x, marker.y, marker.z)
+    centroid_position_fractional_unnormalized = reference_grid.unit_cell.fractionalize(centroid_position_unnormalised)
+    centroid_position_fractional = gemmi.Fractional(centroid_position_fractional_unnormalized.x,
+                                                    centroid_position_fractional_unnormalized.y,
+                                                    centroid_position_fractional_unnormalized.z,
+                                                    )
+    centroid_position = reference_grid.unit_cell.orthogonalize(centroid_position_fractional)
     print(f"\t\tCentroid position: {centroid_position}")
+
+    # def points_in_range(min_pos, max_pos, grid):
+    #
+    #     min_pos_frac
+    #     max_pos_frac
+    #
+    #     min_pos_index
+    #     max_pos_index
+    #
+    #     indexes: List[Tuple(int, int, int)]
+    #     positions: List[gemmi.Position]
+    #
+    #     return indexes, position
 
     # Iterate over grid points, transforming into sample space, and
     example = True
@@ -1842,27 +1863,30 @@ def make_mean_map_local(
 
                 pos = reference_grid.point_to_position(point)
 
-                if centroid_position.dist(pos) < 7.0:
+                # if centroid_position.dist(pos) < 7.0:
 
-                    pos_sample_frame = gemmi.Position(
-                        (pos.x - marker.x) + ((grid_size - 1) / grid_step),
-                        (pos.y - marker.y) + ((grid_size - 1) / grid_step),
-                        (pos.z - marker.z) + ((grid_size - 1) / grid_step),
-                    )
-                    interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
-                    print(f"\t\tPoint: {point.u} {point.v} {point.w} {point.w}")
-                    print(f"\t\tPos: {pos.x} {pos.y} {pos.z}")
-                    print(f"\t\tpos_sample_frame: {pos_sample_frame.x} {pos_sample_frame.y} {pos_sample_frame.z}")
+                pos_sample_frame = gemmi.Position(
+                    (pos.x - centroid_position.x) + ((grid_size - 1) / grid_step),
+                    (pos.y - centroid_position.y) + ((grid_size - 1) / grid_step),
+                    (pos.z - centroid_position.z) + ((grid_size - 1) / grid_step),
+                )
+                interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
+                print(f"\t\tPoint: {point.u} {point.v} {point.w} {point.w}")
+                print(f"\t\tPos: {pos.x} {pos.y} {pos.z}")
+                print(f"\t\tpos_sample_frame: {pos_sample_frame.x} {pos_sample_frame.y} {pos_sample_frame.z}")
 
-                    break
+                break
 
     for point in mask_grid:
         if point.value != 0.0:
             pos = reference_grid.point_to_position(point)
+
+            # if centroid_position.dist(pos) < 7.0:
+
             pos_sample_frame = gemmi.Position(
-                (pos.x - marker.x) + ((grid_size - 1) / grid_step),
-                (pos.y - marker.y) + ((grid_size - 1) / grid_step),
-                (pos.z - marker.z) + ((grid_size - 1) / grid_step),
+                (pos.x - centroid_position.x) + ((grid_size - 1) / grid_step),
+                (pos.y - centroid_position.y) + ((grid_size - 1) / grid_step),
+                (pos.z - centroid_position.z) + ((grid_size - 1) / grid_step),
             )
             interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
             reference_grid.set_value(

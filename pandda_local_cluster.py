@@ -243,7 +243,7 @@ def run_local_cluster(
 
         # Output
         if output_mean_maps:
-            print(f"Outputing mean maps...")
+            print(f"Outputing mean maps for reference: {reference_dataset.dtag}...")
             output_mean_maps_local(
                 sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
                 params.grid_size, params.grid_spacing, params.structure_factors, params.sample_rate
