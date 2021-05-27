@@ -203,27 +203,27 @@ def run_local_cluster(
                                           params.grid_size,
                                           params.grid_spacing,
                                           )
-        sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined(
-            truncated_datasets,
-            marker,
-            alignments,
-            reference_sample,
-            params.structure_factors,
-            params.sample_rate,
-            params.grid_size,
-            params.grid_spacing,
-        )
-        # sample_arrays = sample_datasets_refined_iterative(
+        # sample_arrays: MutableMapping[str, np.ndarray] = sample_datasets_refined(
         #     truncated_datasets,
         #     marker,
         #     alignments,
-        #     known_apos,
+        #     reference_sample,
         #     params.structure_factors,
         #     params.sample_rate,
         #     params.grid_size,
         #     params.grid_spacing,
-        #     0.7
         # )
+        sample_arrays = sample_datasets_refined_iterative(
+            truncated_datasets,
+            marker,
+            alignments,
+            known_apos,
+            params.structure_factors,
+            params.sample_rate,
+            params.grid_size,
+            params.grid_spacing,
+            0.7
+        )
         print(f"Got {len(sample_arrays)} samples")
 
         # Get the distance matrix

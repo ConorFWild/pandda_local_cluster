@@ -1801,6 +1801,8 @@ def make_mean_map_local(
 
         sample_grid.set_value(u, v, w, value)
 
+    sample_grid.symmetrize_max()
+
     # Get a grid in the reference frame
     reflections: gemmi.Mtz = reference_dataset.reflections
     unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
@@ -1808,19 +1810,24 @@ def make_mean_map_local(
         structure_factors.phi,
         sample_rate=sample_rate,
     )
+
+    mask_grid = gemmi.FloatGrid(unaligned_xmap.nu, unaligned_xmap.nv, unaligned_xmap.nw)
+    mask_grid.spacegroup = unaligned_xmap.spacegroup
+    mask_grid.set_unit_cell(unaligned_xmap.unit_cell)
+
     reference_grid = gemmi.FloatGrid(unaligned_xmap.nu, unaligned_xmap.nv, unaligned_xmap.nw)
     reference_grid.spacegroup = unaligned_xmap.spacegroup
     reference_grid.set_unit_cell(unaligned_xmap.unit_cell)
 
     # Mask the relevant reference frame grid points
-    reference_grid.set_points_around(
+    mask_grid.set_points_around(
         gemmi.Position(marker.x, marker.y, marker.z),
-        3.0,
+        7.0,
         1.0,
     )
 
     # Iterate over grid points, transforming into sample space, and
-    for point in reference_grid:
+    for point in mask_grid:
         if point.value != 0.0:
             pos = reference_grid.point_to_position(point)
             pos_sample_frame = gemmi.Position(
@@ -1828,7 +1835,7 @@ def make_mean_map_local(
                 (pos.y - marker.y) - ((grid_size - 1) / grid_step),
                 (pos.z - marker.z) - ((grid_size - 1) / grid_step),
             )
-            interpolated_value = reference_grid.interpolate_value(pos_sample_frame)
+            interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
             reference_grid.set_value(
                 point.u,
                 point.v,
@@ -1853,6 +1860,7 @@ def output_mean_maps_local(sample_arrays, dataset_clusters, reference_dataset, m
     }
 
     for cluster_num in cluster_dtags:
+        print(f"\tMaking mean map from dtags: {cluster_dtags[cluster_num]}")
         mean_map: gemmi.FloatGrid = make_mean_map_local(
             [sample_arrays[dtag] for dtag in cluster_dtags[cluster_num]],
             reference_dataset,
