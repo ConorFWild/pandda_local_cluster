@@ -686,7 +686,7 @@ def sample_datasets(
 #     return arr
 
 def sample_xmap_from_centroid(transform_mat, centroid, grid_size, unaligned_xmap):
-    offset = np.array([(grid_size-1) / 2, (grid_size-1) / 2, (grid_size-1) / 2]).reshape(3, 1)
+    offset = np.array([(grid_size - 1) / 2, (grid_size - 1) / 2, (grid_size - 1) / 2]).reshape(3, 1)
 
     rotated_offset = np.matmul(transform_mat, offset).flatten()
 
@@ -789,18 +789,20 @@ def sample_xmap_perturbed(perturbation, scale_transform_mat, centorid, unaligned
 #     return 1 - correlation
 
 def sample_delta(perturbation, scale_transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
-    transformation_perturbation = perturbation[0:3]
-    rotation_perturbation = perturbation[3:6]
-    perturbed_centroid = transformation_perturbation + centorid
+    # transformation_perturbation = perturbation[0:3]
+    # rotation_perturbation = perturbation[3:6]
+    # perturbed_centroid = transformation_perturbation + centorid
+    #
+    # rotation_perturbation_obj = scipy.spatial.transform.Rotation.from_euler(
+    #     "xyz",
+    #     [rotation_perturbation[0], rotation_perturbation[1], rotation_perturbation[2]], degrees=True)
+    # rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
+    #
+    # perturbed_scale_rotation_mat = np.matmul(scale_transform_mat, rotation_perturbation_mat)
+    #
+    # sample = sample_xmap_from_centroid(perturbed_scale_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
 
-    rotation_perturbation_obj = scipy.spatial.transform.Rotation.from_euler(
-        "xyz",
-        [rotation_perturbation[0], rotation_perturbation[1], rotation_perturbation[2]], degrees=True)
-    rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
-
-    perturbed_scale_rotation_mat = np.matmul(scale_transform_mat, rotation_perturbation_mat)
-
-    sample = sample_xmap_from_centroid(perturbed_scale_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
+    sample = sample_xmap_perturbed(perturbation, scale_transform_mat, centorid, unaligned_xmap, grid_size)
 
     reference_sample_mean = np.mean(reference_sample)
     reference_sample_demeaned = reference_sample - reference_sample_mean
@@ -816,6 +818,7 @@ def sample_delta(perturbation, scale_transform_mat, centorid, unaligned_xmap, re
     correlation = nominator / denominator
 
     return 1 - correlation
+
 
 # def sample_dataset_refined(
 #         dataset: Dataset,
@@ -942,13 +945,13 @@ def sample_dataset_refined(
     # )
 
     print(f"Initial rscc was: {initial_rscc}; Refinement is: {res}")
-    print(f"Initial centroid was : {dataset_centroid}; Initial scalerotation was: {scale_transform_mat}; perturbation was {res.x}")
-
-    # sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
+    print(
+        f"Initial centroid was : {dataset_centroid}; Initial scale-rotation was: {scale_transform_mat}; perturbation was {res.x}")
 
     sample_arr = sample_xmap_perturbed(res.x, scale_transform_mat, dataset_centroid, unaligned_xmap, grid_size)
 
     return 1 - res.fun, sample_arr
+
 
 def sample_datasets_refined(
         truncated_datasets: MutableMapping[str, Dataset],
@@ -1826,14 +1829,40 @@ def make_mean_map_local(
         1.0,
     )
 
+    mask_grid.symmetrize_max()
+
+    centroid_position = gemmi.Position(marker.x, marker.y, marker.z)
+    print(f"\t\tCentroid position: {centroid_position}")
+
     # Iterate over grid points, transforming into sample space, and
+    example = True
+    if example:
+        for point in mask_grid:
+            if point.value != 0.0:
+
+                pos = reference_grid.point_to_position(point)
+
+                if centroid_position.dist(pos) < 7.0:
+
+                    pos_sample_frame = gemmi.Position(
+                        (pos.x - marker.x) + ((grid_size - 1) / grid_step),
+                        (pos.y - marker.y) + ((grid_size - 1) / grid_step),
+                        (pos.z - marker.z) + ((grid_size - 1) / grid_step),
+                    )
+                    interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
+                    print(f"\t\tPoint: {point.u} {point.v} {point.w} {point.w}")
+                    print(f"\t\tPos: {pos.x} {pos.y} {pos.z}")
+                    print(f"\t\tpos_sample_frame: {pos_sample_frame.x} {pos_sample_frame.y} {pos_sample_frame.z}")
+
+                    break
+
     for point in mask_grid:
         if point.value != 0.0:
             pos = reference_grid.point_to_position(point)
             pos_sample_frame = gemmi.Position(
-                (pos.x - marker.x) - ((grid_size - 1) / grid_step),
-                (pos.y - marker.y) - ((grid_size - 1) / grid_step),
-                (pos.z - marker.z) - ((grid_size - 1) / grid_step),
+                (pos.x - marker.x) + ((grid_size - 1) / grid_step),
+                (pos.y - marker.y) + ((grid_size - 1) / grid_step),
+                (pos.z - marker.z) + ((grid_size - 1) / grid_step),
             )
             interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
             reference_grid.set_value(

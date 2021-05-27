@@ -248,6 +248,7 @@ def run_local_cluster(
                 sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
                 params.grid_size, params.grid_spacing, params.structure_factors, params.sample_rate
             )
+            exit()
 
         save_distance_matrix(distance_matrix,
                              out_dir / f"{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}.npy")
