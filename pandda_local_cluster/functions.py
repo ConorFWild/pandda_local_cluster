@@ -674,10 +674,27 @@ def sample_datasets(
     return samples
 
 
-def sample_xmap(transform_mat, centroid, grid_size, unaligned_xmap):
+# def sample_xmap(transform_mat, centroid, grid_size, unaligned_xmap):
+#     tr = gemmi.Transform()
+#     tr.mat.fromlist(transform_mat.tolist())
+#     tr.vec.fromlist(centroid.tolist())
+#
+#     arr = np.zeros([grid_size, grid_size, grid_size], dtype=np.float32)
+#
+#     unaligned_xmap.interpolate_values(arr, tr)
+#
+#     return arr
+
+def sample_xmap_from_centroid(transform_mat, centroid, grid_size, unaligned_xmap):
+    offset = np.array([(grid_size-1) / 2, (grid_size-1) / 2, (grid_size-1) / 2]).reshape(3, 1)
+
+    rotated_offset = np.matmul(transform_mat, offset).flatten()
+
+    dataset_centroid_offset = centroid - rotated_offset
+
     tr = gemmi.Transform()
     tr.mat.fromlist(transform_mat.tolist())
-    tr.vec.fromlist(centroid.tolist())
+    tr.vec.fromlist(dataset_centroid_offset.tolist())
 
     arr = np.zeros([grid_size, grid_size, grid_size], dtype=np.float32)
 
@@ -686,46 +703,92 @@ def sample_xmap(transform_mat, centroid, grid_size, unaligned_xmap):
     return arr
 
 
-def sample_delta_transform_only(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
-    # transformation = perturbation[]
-    offset_sectroid = perturbation + centorid
+# def sample_delta_transform_only(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
+#     # transformation = perturbation[]
+#     offset_sectroid = perturbation + centorid
+#
+#     sample = sample_xmap(transform_mat, offset_sectroid, grid_size, unaligned_xmap)
+#
+#     reference_sample_mean = np.mean(reference_sample)
+#     reference_sample_demeaned = reference_sample - reference_sample_mean
+#     reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
+#
+#     sample_mean = np.mean(sample)
+#     sample_demeaned = sample - sample_mean
+#     sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
+#
+#     nominator = np.sum(reference_sample_demeaned * sample_demeaned)
+#     denominator = sample_denominator * reference_sample_denominator
+#
+#     correlation = nominator / denominator
+#
+#     return correlation
 
-    sample = sample_xmap(transform_mat, offset_sectroid, grid_size, unaligned_xmap)
 
-    reference_sample_mean = np.mean(reference_sample)
-    reference_sample_demeaned = reference_sample - reference_sample_mean
-    reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
+# def sample_xmap_perturbed(perturbation, transform_mat, centorid, unaligned_xmap, grid_size):
+#     transformation_perturbation = perturbation[0:3]
+#     rotation_perturbation = perturbation[3:6]
+#     perturbed_centroid = transformation_perturbation + centorid
+#
+#     rotation_perturbation_obj = scipy.spatial.transform.Rotation.from_euler(
+#         "xyz",
+#         [rotation_perturbation[0], rotation_perturbation[1], rotation_perturbation[2]], degrees=True)
+#     rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
+#
+#     perturbed_rotation_mat = np.matmul(transform_mat, rotation_perturbation_mat)
+#
+#     sample = sample_xmap(perturbed_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
+#
+#     return sample
 
-    sample_mean = np.mean(sample)
-    sample_demeaned = sample - sample_mean
-    sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
-
-    nominator = np.sum(reference_sample_demeaned * sample_demeaned)
-    denominator = sample_denominator * reference_sample_denominator
-
-    correlation = nominator / denominator
-
-    return correlation
-
-
-def sample_xmap_perturbed(perturbation, transform_mat, centorid, unaligned_xmap, grid_size):
+def sample_xmap_perturbed(perturbation, scale_transform_mat, centorid, unaligned_xmap, grid_size):
     transformation_perturbation = perturbation[0:3]
     rotation_perturbation = perturbation[3:6]
-    perturbed_centroid = transformation_perturbation + centorid
 
     rotation_perturbation_obj = scipy.spatial.transform.Rotation.from_euler(
         "xyz",
         [rotation_perturbation[0], rotation_perturbation[1], rotation_perturbation[2]], degrees=True)
     rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
 
-    perturbed_rotation_mat = np.matmul(transform_mat, rotation_perturbation_mat)
+    perturbed_scale_rotation_mat = np.matmul(scale_transform_mat, rotation_perturbation_mat)
 
-    sample = sample_xmap(perturbed_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
+    perturbed_centroid = transformation_perturbation + centorid
+
+    sample = sample_xmap_from_centroid(perturbed_scale_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
 
     return sample
 
 
-def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
+# def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
+#     transformation_perturbation = perturbation[0:3]
+#     rotation_perturbation = perturbation[3:6]
+#     perturbed_centroid = transformation_perturbation + centorid
+#
+#     rotation_perturbation_obj = scipy.spatial.transform.Rotation.from_euler(
+#         "xyz",
+#         [rotation_perturbation[0], rotation_perturbation[1], rotation_perturbation[2]], degrees=True)
+#     rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
+#
+#     perturbed_rotation_mat = np.matmul(transform_mat, rotation_perturbation_mat)
+#
+#     sample = sample_xmap(perturbed_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
+#
+#     reference_sample_mean = np.mean(reference_sample)
+#     reference_sample_demeaned = reference_sample - reference_sample_mean
+#     reference_sample_denominator = np.sqrt(np.sum(np.square(reference_sample_demeaned)))
+#
+#     sample_mean = np.mean(sample)
+#     sample_demeaned = sample - sample_mean
+#     sample_denominator = np.sqrt(np.sum(np.square(sample_demeaned)))
+#
+#     nominator = np.sum(reference_sample_demeaned * sample_demeaned)
+#     denominator = sample_denominator * reference_sample_denominator
+#
+#     correlation = nominator / denominator
+#
+#     return 1 - correlation
+
+def sample_delta(perturbation, scale_transform_mat, centorid, unaligned_xmap, reference_sample, grid_size):
     transformation_perturbation = perturbation[0:3]
     rotation_perturbation = perturbation[3:6]
     perturbed_centroid = transformation_perturbation + centorid
@@ -735,9 +798,9 @@ def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, referenc
         [rotation_perturbation[0], rotation_perturbation[1], rotation_perturbation[2]], degrees=True)
     rotation_perturbation_mat = rotation_perturbation_obj.as_matrix()
 
-    perturbed_rotation_mat = np.matmul(transform_mat, rotation_perturbation_mat)
+    perturbed_scale_rotation_mat = np.matmul(scale_transform_mat, rotation_perturbation_mat)
 
-    sample = sample_xmap(perturbed_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
+    sample = sample_xmap_from_centroid(perturbed_scale_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap)
 
     reference_sample_mean = np.mean(reference_sample)
     reference_sample_demeaned = reference_sample - reference_sample_mean
@@ -753,6 +816,76 @@ def sample_delta(perturbation, transform_mat, centorid, unaligned_xmap, referenc
     correlation = nominator / denominator
 
     return 1 - correlation
+
+# def sample_dataset_refined(
+#         dataset: Dataset,
+#         transform: Transform,
+#         marker: Marker,
+#         reference_sample: np.ndarray,
+#         structure_factors: StructureFactors,
+#         sample_rate: float,
+#         grid_size: int,
+#         grid_spacing: float,
+# ) -> np.ndarray:
+#     reflections: gemmi.Mtz = dataset.reflections
+#     unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+#         structure_factors.f,
+#         structure_factors.phi,
+#         sample_rate=sample_rate,
+#     )
+#
+#     unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
+#
+#     std = np.std(unaligned_xmap_array)
+#     unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
+#
+#     transform_inverse = transform.transform.inverse()
+#
+#     transform_vec = -np.array(transform.transform.vec.tolist())
+#     print(f"transform vector: {transform_vec}")
+#
+#     transform_mat = np.array(transform_inverse.mat.tolist())
+#     print(f"transform matrix: {transform_mat}")
+#
+#     transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
+#     print(f"transform matrix scaled: {transform_mat}")
+#
+#     offset = np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)
+#     print(f"offset: {offset}")
+#
+#     rotated_offset = np.matmul(transform_mat, offset).flatten()
+#     print(f"rotated_offset: {rotated_offset}")
+#
+#     dataset_centroid = np.array([marker.x, marker.y, marker.z]) + transform_vec
+#     print(f"dataset_centroid: {dataset_centroid}")
+#
+#     dataset_centroid_offset = dataset_centroid - rotated_offset
+#     print(f"Sampling from: {dataset_centroid_offset}")
+#
+#     initial_rscc = sample_delta((0.0, 0.0, 0.0, 0.0, 0.0, 0.0), transform_mat, dataset_centroid_offset, unaligned_xmap,
+#                                 reference_sample, grid_size)
+#     print(f"Intial rscc is: {initial_rscc}")
+#
+#     res = scipy.optimize.shgo(
+#         lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
+#                                           reference_sample, grid_size),
+#         [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ],
+#         n=60, iters=5, sampling_method='sobol'
+#     )
+#
+#     # res = scipy.optimize.differential_evolution(
+#     #     lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
+#     #                                       reference_sample, grid_size),
+#     #     [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
+#     # )
+#
+#     print(f"Initial rscc was: {initial_rscc}; Refinement is: {res}")
+#
+#     # sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
+#
+#     sample_arr = sample_xmap_perturbed(res.x, transform_mat, dataset_centroid_offset, unaligned_xmap, grid_size)
+#
+#     return 1 - res.fun, sample_arr
 
 
 def sample_dataset_refined(
@@ -785,27 +918,18 @@ def sample_dataset_refined(
     transform_mat = np.array(transform_inverse.mat.tolist())
     print(f"transform matrix: {transform_mat}")
 
-    transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
-    print(f"transform matrix scaled: {transform_mat}")
-
-    offset = np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)
-    print(f"offset: {offset}")
-
-    rotated_offset = np.matmul(transform_mat, offset).flatten()
-    print(f"rotated_offset: {rotated_offset}")
+    scale_transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
+    print(f"transform matrix scaled: {scale_transform_mat}")
 
     dataset_centroid = np.array([marker.x, marker.y, marker.z]) + transform_vec
     print(f"dataset_centroid: {dataset_centroid}")
 
-    dataset_centroid_offset = dataset_centroid - rotated_offset
-    print(f"Sampling from: {dataset_centroid_offset}")
-
-    initial_rscc = sample_delta((0.0, 0.0, 0.0, 0.0, 0.0, 0.0), transform_mat, dataset_centroid_offset, unaligned_xmap,
+    initial_rscc = sample_delta((0.0, 0.0, 0.0, 0.0, 0.0, 0.0), scale_transform_mat, dataset_centroid, unaligned_xmap,
                                 reference_sample, grid_size)
     print(f"Intial rscc is: {initial_rscc}")
 
     res = scipy.optimize.shgo(
-        lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
+        lambda perturbation: sample_delta(perturbation, scale_transform_mat, dataset_centroid, unaligned_xmap,
                                           reference_sample, grid_size),
         [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ],
         n=60, iters=5, sampling_method='sobol'
@@ -821,10 +945,9 @@ def sample_dataset_refined(
 
     # sample_arr = sample_xmap(transform_mat, dataset_centroid_offset + res.x, grid_size, unaligned_xmap)
 
-    sample_arr = sample_xmap_perturbed(res.x, transform_mat, dataset_centroid_offset, unaligned_xmap, grid_size)
+    sample_arr = sample_xmap_perturbed(res.x, scale_transform_mat, dataset_centroid, unaligned_xmap, grid_size)
 
     return 1 - res.fun, sample_arr
-
 
 def sample_datasets_refined(
         truncated_datasets: MutableMapping[str, Dataset],
@@ -924,7 +1047,7 @@ def sample_datasets_refined_iterative(
 
     # samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
 
-    return samples, alignment_classes
+    return samples
 
 
 def get_corr(reference_sample_mask, sample_mask, diag):
