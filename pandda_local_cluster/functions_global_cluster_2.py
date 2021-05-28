@@ -931,9 +931,9 @@ def run_global_cluster(
 
     # Interactive plots
     labels = list(sample_arrays.keys())
-    save_plot_tsne_bokeh(distance_matrix, labels, out_dir / f"embed.html")
-    save_plot_umap_bokeh(distance_matrix, labels, out_dir / f"umap.html")
-    save_plot_pca_umap_bokeh(distance_matrix, labels, out_dir / f"pca_umap.html")
+    save_plot_tsne_bokeh(distance_matrix, labels, known_apos, out_dir / f"embed.html")
+    save_plot_umap_bokeh(distance_matrix, labels,known_apos, out_dir / f"umap.html")
+    save_plot_pca_umap_bokeh(distance_matrix, labels, known_apos,out_dir / f"pca_umap.html")
 
     # Store resullts
     clusters = {

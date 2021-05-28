@@ -1,4 +1,5 @@
 import json
+import itertools
 
 # 3rd party
 import numpy as np
@@ -587,59 +588,59 @@ def get_alignments(
     return alignments
 
 
-def sample_dataset(
-        dataset: Dataset,
-        transform: Transform,
-        marker: Marker,
-        structure_factors: StructureFactors,
-        sample_rate: float,
-        grid_size: int,
-        grid_spacing: float,
-) -> np.ndarray:
-    reflections: gemmi.Mtz = dataset.reflections
-    unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
-        structure_factors.f,
-        structure_factors.phi,
-        sample_rate=sample_rate,
-    )
-
-    unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
-
-    std = np.std(unaligned_xmap_array)
-    unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
-
-    transform_inverse = transform.transform.inverse()
-
-    transform_vec = -np.array(transform.transform.vec.tolist())
-    print(f"transform vector: {transform_vec}")
-
-    transform_mat = np.array(transform_inverse.mat.tolist())
-    print(f"transform matrix: {transform_mat}")
-
-    transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
-    print(f"transform matrix scaled: {transform_mat}")
-
-    offset = np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)
-    print(f"offset: {offset}")
-
-    rotated_offset = np.matmul(transform_mat, offset).flatten()
-    print(f"rotated_offset: {rotated_offset}")
-
-    dataset_centroid = np.array([marker.x, marker.y, marker.z]) + transform_vec
-    print(f"dataset_centroid: {dataset_centroid}")
-
-    dataset_centroid_offset = dataset_centroid - rotated_offset
-    print(f"Sampling from: {dataset_centroid_offset}")
-
-    tr = gemmi.Transform()
-    tr.mat.fromlist(transform_mat.tolist())
-    tr.vec.fromlist(dataset_centroid_offset.tolist())
-
-    arr = np.zeros([grid_size, grid_size, grid_size], dtype=np.float32)
-
-    unaligned_xmap.interpolate_values(arr, tr)
-
-    return arr
+# def sample_dataset(
+#         dataset: Dataset,
+#         transform: Transform,
+#         marker: Marker,
+#         structure_factors: StructureFactors,
+#         sample_rate: float,
+#         grid_size: int,
+#         grid_spacing: float,
+# ) -> np.ndarray:
+#     reflections: gemmi.Mtz = dataset.reflections
+#     unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+#         structure_factors.f,
+#         structure_factors.phi,
+#         sample_rate=sample_rate,
+#     )
+#
+#     unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
+#
+#     std = np.std(unaligned_xmap_array)
+#     unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
+#
+#     transform_inverse = transform.transform.inverse()
+#
+#     transform_vec = -np.array(transform.transform.vec.tolist())
+#     print(f"transform vector: {transform_vec}")
+#
+#     transform_mat = np.array(transform_inverse.mat.tolist())
+#     print(f"transform matrix: {transform_mat}")
+#
+#     transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
+#     print(f"transform matrix scaled: {transform_mat}")
+#
+#     offset = np.array([grid_size / 2, grid_size / 2, grid_size / 2]).reshape(3, 1)
+#     print(f"offset: {offset}")
+#
+#     rotated_offset = np.matmul(transform_mat, offset).flatten()
+#     print(f"rotated_offset: {rotated_offset}")
+#
+#     dataset_centroid = np.array([marker.x, marker.y, marker.z]) + transform_vec
+#     print(f"dataset_centroid: {dataset_centroid}")
+#
+#     dataset_centroid_offset = dataset_centroid - rotated_offset
+#     print(f"Sampling from: {dataset_centroid_offset}")
+#
+#     tr = gemmi.Transform()
+#     tr.mat.fromlist(transform_mat.tolist())
+#     tr.vec.fromlist(dataset_centroid_offset.tolist())
+#
+#     arr = np.zeros([grid_size, grid_size, grid_size], dtype=np.float32)
+#
+#     unaligned_xmap.interpolate_values(arr, tr)
+#
+#     return arr
 
 
 def sample_datasets(
@@ -685,7 +686,7 @@ def sample_datasets(
 #
 #     return arr
 
-def sample_xmap_from_centroid(transform_mat, centroid, grid_size, unaligned_xmap, report):
+def sample_xmap_from_centroid(transform_mat, centroid, grid_size, unaligned_xmap, report=False):
     offset = np.array([(grid_size - 1) / 2, (grid_size - 1) / 2, (grid_size - 1) / 2]).reshape(3, 1)
 
     rotated_offset = np.matmul(transform_mat, offset).flatten()
@@ -758,7 +759,8 @@ def sample_xmap_perturbed(perturbation, scale_transform_mat, centorid, unaligned
 
     perturbed_centroid = transformation_perturbation + centorid
 
-    sample = sample_xmap_from_centroid(perturbed_scale_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap, report)
+    sample = sample_xmap_from_centroid(perturbed_scale_rotation_mat, perturbed_centroid, grid_size, unaligned_xmap,
+                                       report)
 
     return sample
 
@@ -895,6 +897,48 @@ def sample_delta(perturbation, scale_transform_mat, centorid, unaligned_xmap, re
 #     return 1 - res.fun, sample_arr
 
 
+def sample_dataset(
+        dataset: Dataset,
+        transform: Transform,
+        marker: Marker,
+        structure_factors: StructureFactors,
+        sample_rate: float,
+        grid_size: int,
+        grid_spacing: float,
+) -> np.ndarray:
+    reflections: gemmi.Mtz = dataset.reflections
+    unaligned_xmap: gemmi.FloatGrid = reflections.transform_f_phi_to_map(
+        structure_factors.f,
+        structure_factors.phi,
+        sample_rate=sample_rate,
+    )
+
+    unaligned_xmap_array = np.array(unaligned_xmap, copy=False)
+
+    std = np.std(unaligned_xmap_array)
+    unaligned_xmap_array[:, :, :] = unaligned_xmap_array[:, :, :] / std
+
+    transform_inverse = transform.transform.inverse()
+
+    transform_vec = -np.array(transform.transform.vec.tolist())
+    print(f"transform vector: {transform_vec}")
+
+    transform_mat = np.array(transform_inverse.mat.tolist())
+    print(f"transform matrix: {transform_mat}")
+
+    scale_transform_mat = np.matmul(transform_mat, np.eye(3) * grid_spacing)
+    print(f"transform matrix scaled: {scale_transform_mat}")
+
+    dataset_centroid = np.array([marker.x, marker.y, marker.z]) + transform_vec
+    print(f"dataset_centroid: {dataset_centroid}")
+
+    sample_arr = sample_xmap_perturbed((0.0, 0.0, 0.0, 0.0, 0.0, 0.0), scale_transform_mat, dataset_centroid,
+                                       unaligned_xmap, grid_size,
+                                       report=True)
+
+    return sample_arr
+
+
 def sample_dataset_refined(
         dataset: Dataset,
         transform: Transform,
@@ -952,7 +996,8 @@ def sample_dataset_refined(
     print(
         f"Initial centroid was : {dataset_centroid}; Initial scale-rotation was: {scale_transform_mat}; perturbation was {res.x}")
 
-    sample_arr = sample_xmap_perturbed(res.x, scale_transform_mat, dataset_centroid, unaligned_xmap, grid_size, report=True)
+    sample_arr = sample_xmap_perturbed(res.x, scale_transform_mat, dataset_centroid, unaligned_xmap, grid_size,
+                                       report=True)
 
     return 1 - res.fun, sample_arr
 
@@ -1015,6 +1060,14 @@ def sample_datasets_refined_iterative(
 
         reference_dtag = dtag_array[0]
 
+        # reference_sample = sample_dataset(truncated_datasets[reference_dtag],
+        #                                   alignments[reference_dtag][marker],
+        #                                   marker,
+        #                                   structure_factors,
+        #                                   sample_rate,
+        #                                   grid_size,
+        #                                   grid_spacing,
+        #                                   )
         reference_sample = sample_dataset(truncated_datasets[reference_dtag],
                                           alignments[reference_dtag][marker],
                                           marker,
@@ -1582,43 +1635,46 @@ def save_num_clusters_stacked_bar_plot(clustering_dict, plot_file):
     plt.close(fig)
 
 
-def bokeh_scatter_plot(embedding, labels, plot_file):
+def bokeh_scatter_plot(embedding, labels, know_apos, plot_file):
     output_file(str(plot_file))
 
     source = ColumnDataSource(
         data=dict(
             x=embedding[:, 0].tolist(),
             y=embedding[:, 1].tolist(),
-            desc=labels,
+            dtag=labels,
+            apo=[1 if label in know_apos else 0 for label in labels]
         ))
 
     TOOLTIPS = [
         ("index", "$index"),
         ("(x,y)", "($x, $y)"),
-        ("desc", "@desc"),
+        ("dtag", "@dtag"),
+        ("apo", "@apo"),
     ]
 
     p = figure(plot_width=1200, plot_height=1200, tooltips=TOOLTIPS,
-               title="Mouse over the dots")
+               title="Mouse over the dots",
+               color=["green" if label in know_apos else "pink" for label in labels])
 
     p.circle('x', 'y', size=15, source=source)
 
     show(p)
 
 
-def save_plot_tsne_bokeh(dataset_connectivity_matrix, labels, plot_file):
+def save_plot_tsne_bokeh(dataset_connectivity_matrix, labels, known_apos, plot_file):
     embedding = embed(dataset_connectivity_matrix)
-    bokeh_scatter_plot(embedding, labels, plot_file)
+    bokeh_scatter_plot(embedding, labels, known_apos, plot_file)
 
 
-def save_plot_pca_umap_bokeh(dataset_connectivity_matrix, labels, plot_file):
+def save_plot_pca_umap_bokeh(dataset_connectivity_matrix, labels, known_apos, plot_file):
     embedding = embed_umap(dataset_connectivity_matrix)
-    bokeh_scatter_plot(embedding, labels, plot_file)
+    bokeh_scatter_plot(embedding, labels, known_apos, plot_file)
 
 
-def save_plot_umap_bokeh(dataset_connectivity_matrix, labels, plot_file):
+def save_plot_umap_bokeh(dataset_connectivity_matrix, labels, known_apos, plot_file):
     embedding = embed_umap_no_pca(dataset_connectivity_matrix)
-    bokeh_scatter_plot(embedding, labels, plot_file)
+    bokeh_scatter_plot(embedding, labels, known_apos, plot_file)
 
 
 def save_embed_plot(dataset_connectivity_matrix, plot_file):
@@ -1774,6 +1830,50 @@ def save_ccp4(path: Path, grid: gemmi.FloatGrid):
     ccp4.write_ccp4_map(str(path))
 
 
+def points_in_range(min_pos, max_pos, grid):
+    min_pos_frac = grid.unit_cell.fractionalize(min_pos)
+    max_pos_frac = grid.unit_cell.fractionalize(max_pos)
+
+    min_pos_index: Tuple[int, int, int] = (int(min_pos_frac.x * grid.nu),
+                                           int(min_pos_frac.y * grid.nv),
+                                           int(min_pos_frac.z * grid.nw),
+                                           )
+    print(f"\t\tmin index: {min_pos_index}")
+    max_pos_index: Tuple[int, int, int] = (int(max_pos_frac.x * grid.nu),
+                                           int(max_pos_frac.y * grid.nv),
+                                           int(max_pos_frac.z * grid.nw),
+                                           )
+    print(f"\t\tmax index: {max_pos_index}")
+
+    indexes: List[Tuple[int, int, int]] = list(
+        itertools.product(
+            range(min_pos_index[0], max_pos_index[0]),
+            range(min_pos_index[1], max_pos_index[1]),
+            range(min_pos_index[2], max_pos_index[2]),
+        )
+    )
+    # print(indexes)
+
+    print(f"\tIndexes: {indexes[0]} {indexes[-1]}")
+    positions: List[gemmi.Position] = [
+        gemmi.Position(
+            *grid.unit_cell.orthogonalize(
+                gemmi.Fractional(
+                    index[0] / grid.nu,
+                    index[1] / grid.nv,
+                    index[2] / grid.nw,
+                )
+            )
+        )
+        for index
+        in indexes
+    ]
+
+    print(f"\tPositions: {positions[0]} {positions[-1]}")
+
+    return indexes, positions
+
+
 def make_mean_map_local(
         samples,
         reference_dataset: Dataset,
@@ -1785,7 +1885,7 @@ def make_mean_map_local(
 ):
     # Get the mean
     samples_array = np.stack(samples, axis=0)
-    samples_mean = np.mean(samples, axis=0)
+    samples_mean = np.mean(samples_array, axis=0)
 
     # Get a grid in the sample frame (defined by size and spacing because orthogonal)
     sample_grid = gemmi.FloatGrid(grid_size, grid_size, grid_size)
@@ -1835,73 +1935,131 @@ def make_mean_map_local(
 
     # mask_grid.symmetrize_max()
 
-    centroid_position_unnormalised = gemmi.Position(marker.x, marker.y, marker.z)
-    centroid_position_fractional_unnormalized = reference_grid.unit_cell.fractionalize(centroid_position_unnormalised)
-    centroid_position_fractional = gemmi.Fractional(centroid_position_fractional_unnormalized.x % 1,
-                                                    centroid_position_fractional_unnormalized.y % 1,
-                                                    centroid_position_fractional_unnormalized.z % 1,
-                                                    )
-    centroid_position = reference_grid.unit_cell.orthogonalize(centroid_position_fractional)
+    # centroid_position_unnormalised = gemmi.Position(marker.x, marker.y, marker.z)
+    # centroid_position_fractional_unnormalized = reference_grid.unit_cell.fractionalize(centroid_position_unnormalised)
+    # centroid_position_fractional = gemmi.Fractional(centroid_position_fractional_unnormalized.x % 1,
+    #                                                 centroid_position_fractional_unnormalized.y % 1,
+    #                                                 centroid_position_fractional_unnormalized.z % 1,
+    #                                                 )
+    # centroid_position = reference_grid.unit_cell.orthogonalize(centroid_position_fractional)
+    centroid_position = gemmi.Position(marker.x, marker.y, marker.z)
+
     print(f"\t\tCentroid position: {centroid_position}")
 
-    # def points_in_range(min_pos, max_pos, grid):
-    #
-    #     min_pos_frac
-    #     max_pos_frac
-    #
-    #     min_pos_index
-    #     max_pos_index
-    #
-    #     indexes: List[Tuple(int, int, int)]
-    #     positions: List[gemmi.Position]
-    #
-    #     return indexes, position
+    indexes, positions = points_in_range(
+        gemmi.Position(
+            centroid_position.x - (((grid_size - 1) * grid_step) / 2),
+            centroid_position.y - (((grid_size - 1) * grid_step) / 2),
+            centroid_position.z - (((grid_size - 1) * grid_step) / 2),
+        ),
+        gemmi.Position(
+            centroid_position.x + (((grid_size - 1) * grid_step) / 2),
+            centroid_position.y + (((grid_size - 1) * grid_step) / 2),
+            centroid_position.z + (((grid_size - 1) * grid_step) / 2),
+        ),
+        mask_grid,
+    )
 
     # Iterate over grid points, transforming into sample space, and
-    example = True
-    if example:
-        for point in mask_grid:
-            if point.value != 0.0:
-                pos = reference_grid.point_to_position(point)
+    # example = True
+    # if example:
+    #     for index, pos in zip(indexes, positions):
+    #         # if point.value != 0.0:
+    #         #     pos = reference_grid.point_to_position(point)
+    #
+    #             # if centroid_position.dist(pos) < 7.0:
+    #
+    #         pos_sample_frame = gemmi.Position(
+    #             (pos.x - centroid_position.x) + (((grid_size - 1) * grid_step) / 2),
+    #             (pos.y - centroid_position.y) + (((grid_size - 1) * grid_step) / 2),
+    #             (pos.z - centroid_position.z) + (((grid_size - 1) * grid_step) / 2),
+    #         )
+    #         interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
+    #         print(f"\t\tPoint: {index[0]} {index[1]} {index[2]}")
+    #         print(f"\t\tPos: {pos.x} {pos.y} {pos.z}")
+    #         print(f"\t\tpos_sample_frame: {pos_sample_frame.x} {pos_sample_frame.y} {pos_sample_frame.z}")
+    #
+    #         break
 
-                # if centroid_position.dist(pos) < 7.0:
+    j = -1
+    for index, pos in zip(indexes, positions):
+        j = j + 1
+        # if point.value != 0.0:
+        #     pos = reference_grid.point_to_position(point)
 
-                pos_sample_frame = gemmi.Position(
-                    (pos.x - centroid_position.x) + ((grid_size - 1) / (2 * grid_step)),
-                    (pos.y - centroid_position.y) + ((grid_size - 1) / (2 * grid_step)),
-                    (pos.z - centroid_position.z) + ((grid_size - 1) / (2 * grid_step)),
-                )
-                interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
-                print(f"\t\tPoint: {point.u} {point.v} {point.w} {point.value}")
-                print(f"\t\tPos: {pos.x} {pos.y} {pos.z}")
-                print(f"\t\tpos_sample_frame: {pos_sample_frame.x} {pos_sample_frame.y} {pos_sample_frame.z}")
+        # if centroid_position.dist(pos) < 7.0:
 
-                break
-
-    for point in mask_grid:
-        if point.value != 0.0:
-            pos = reference_grid.point_to_position(point)
-
-            # if centroid_position.dist(pos) < 7.0:
-
-            pos_sample_frame = gemmi.Position(
-                (pos.x - centroid_position.x) + (((grid_size - 1) * grid_step) / 2),
-                (pos.y - centroid_position.y) + (((grid_size - 1) * grid_step) / 2),
-                (pos.z - centroid_position.z) + (((grid_size - 1) * grid_step) / 2),
-            )
-            interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
-            reference_grid.set_value(
-                point.u,
-                point.v,
-                point.w,
-                interpolated_value
-            )
+        pos_sample_frame = gemmi.Position(
+            (pos.x - centroid_position.x) + (((grid_size - 1) * grid_step) / 2),
+            (pos.y - centroid_position.y) + (((grid_size - 1) * grid_step) / 2),
+            (pos.z - centroid_position.z) + (((grid_size - 1) * grid_step) / 2),
+        )
+        interpolated_value = sample_grid.interpolate_value(pos_sample_frame)
+        reference_grid.set_value(
+            index[0],
+            index[1],
+            index[2],
+            interpolated_value
+        )
+        point = reference_grid.get_point(
+            index[0],
+            index[1],
+            index[2],
+        )
+        grid_position = reference_grid.point_to_position(point)
+        if j == 0 or j == (len(indexes) - 1):
+            print(f"\t\tPoint: {index[0]} {index[1]} {index[2]}")
+            print(f"\t\tGrid Point: {point.u} {point.v} {point.w}")
+            print(f"\t\tGrid Position: {grid_position.x} {grid_position.y} {grid_position.z}")
+            print(f"\t\tPos: {pos.x} {pos.y} {pos.z}")
+            print(f"\t\tpos_sample_frame: {pos_sample_frame.x} {pos_sample_frame.y} {pos_sample_frame.z}")
 
     # Update symmetry
     reference_grid.symmetrize_max()
 
     # return
     return reference_grid
+
+
+def make_mean_map_local_origin(
+        samples,
+        reference_dataset: Dataset,
+        marker: Marker,
+        grid_size,
+        grid_step,
+        structure_factors,
+        sample_rate,
+):
+    # Get the mean
+    samples_array = np.stack(samples, axis=0)
+    samples_mean = np.mean(samples_array, axis=0)
+
+    # Get a grid in the sample frame (defined by size and spacing because orthogonal)
+    sample_grid = gemmi.FloatGrid(grid_size, grid_size, grid_size)
+    sample_unit_cell = gemmi.UnitCell(
+        int((grid_size - 1) * grid_step),
+        int((grid_size - 1) * grid_step),
+        int((grid_size - 1) * grid_step),
+        90,
+        90,
+        90,
+    )
+    sample_grid.set_unit_cell(sample_unit_cell)
+
+    # Sample the mean onto the sample grid
+    for point in sample_grid:
+        u = point.u
+        v = point.v
+        w = point.w
+        value = samples_mean[u, v, w]
+
+        sample_grid.set_value(u, v, w, value)
+
+    sample_grid.symmetrize_max()
+
+
+    # return
+    return sample_grid
 
 
 def output_mean_maps_local(sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
@@ -1925,4 +2083,16 @@ def output_mean_maps_local(sample_arrays, dataset_clusters, reference_dataset, m
         save_ccp4(
             out_dir / f"mean_map_{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}_{cluster_num}.ccp4",
             mean_map,
+        )
+
+        mean_map_origin: gemmi.FloatGrid = make_mean_map_local(
+            [sample_arrays[dtag] for dtag in cluster_dtags[cluster_num]],
+            reference_dataset,
+            marker,
+            grid_size, grid_step, structure_factors, sample_rate
+        )
+
+        save_ccp4(
+            out_dir / f"mean_map_{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}_{cluster_num}_origin.ccp4",
+            mean_map_origin,
         )
