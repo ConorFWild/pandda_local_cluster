@@ -870,6 +870,25 @@ def run_global_cluster(
         print(f"First line of distance matrix: {distance_matrix[0, :]}")
         print(f"Last line of distance matrix: {distance_matrix[-1, :]}")
 
+    if params.debug:
+        dtag_array = np.array(list(sample_grids.keys()))
+
+        for j, dtag in enumerate(dtag_array):
+            # Get row
+            row = distance_matrix[j, :]
+
+            # get sorting
+            sorting = np.argsort(row)
+
+            # sort dtags by row
+            sorted_dtags = np.take_along_axis(dtag_array, sorting, axis=0)
+
+            # Take last 30
+            closest_dtags = sorted_dtags[-30:]
+
+            # print
+            print("\tDtag: {}: closest dtags {}".format(dtag, ",".join(closest_dtags)))
+
     # Get the distance matrix linkage
     linkage: np.ndarray = get_linkage_from_correlation_matrix(distance_matrix)
 

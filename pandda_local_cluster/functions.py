@@ -1,5 +1,6 @@
 import json
 import itertools
+import time
 
 # 3rd party
 import numpy as np
@@ -14,6 +15,7 @@ import hdbscan
 from scipy.cluster import hierarchy
 from sklearn import decomposition
 from sklearn import manifold
+from sklearn.mixture import GaussianMixture
 import umap
 from bokeh.plotting import ColumnDataSource, figure, output_file, show
 
@@ -982,9 +984,32 @@ def sample_dataset_refined(
     res = scipy.optimize.shgo(
         lambda perturbation: sample_delta(perturbation, scale_transform_mat, dataset_centroid, unaligned_xmap,
                                           reference_sample, grid_size),
-        [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ],
-        n=60, iters=5, sampling_method='sobol'
+        [(-3, 3), (-3, 3), (-3, 3), (-30.0, 30.0), (-30.0, 30.0), (-30.0, 30.0), ],
+        iters=3,
     )
+
+    # res = scipy.optimize.shgo(
+    #     lambda perturbation: sample_delta(perturbation, scale_transform_mat, dataset_centroid, unaligned_xmap,
+    #                                       reference_sample, grid_size),
+    #     [(-5, 5), (-5, 5), (-5, 5), (-30.0, 30.0), (-30.0, 30.0), (-30.0, 30.0), ],
+    #     n=1000,
+    #     iters=1,
+    #     sampling_method="sobol"
+    # )
+
+    # res = scipy.optimize.shgo(
+    #     lambda perturbation: sample_delta(perturbation, scale_transform_mat, dataset_centroid, unaligned_xmap,
+    #                                       reference_sample, grid_size),
+    #     [(-3, 3), (-3, 3), (-3, 3), (-30.0, 30.0), (-30.0, 30.0), (-30.0, 30.0), ],
+    #     n=120, iters=5, sampling_method='sobol'
+    # )
+
+    # res = scipy.optimize.shgo(
+    #     lambda perturbation: sample_delta(perturbation, scale_transform_mat, dataset_centroid, unaligned_xmap,
+    #                                       reference_sample, grid_size),
+    #     [(-5, 5), (-5, 5), (-5, 5), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ],
+    #     n=120, iters=5, sampling_method='sobol'
+    # )
 
     # res = scipy.optimize.differential_evolution(
     #     lambda perturbation: sample_delta(perturbation, transform_mat, dataset_centroid_offset, unaligned_xmap,
@@ -992,7 +1017,7 @@ def sample_dataset_refined(
     #     [(-3, 3), (-3, 3), (-3, 3), (-180.0, 180.0), (-180.0, 180.0), (-180.0, 180.0), ]
     # )
 
-    print(f"Initial rscc was: {initial_rscc}; Refinement is: {res}")
+    print(f"Initial 1-rscc was: {initial_rscc}; Refinement 1-rscc is: {res}")
     print(
         f"Initial centroid was : {dataset_centroid}; Initial scale-rotation was: {scale_transform_mat}; perturbation was {res.x}")
 
@@ -1035,6 +1060,91 @@ def sample_datasets_refined(
     return samples
 
 
+#
+# def sample_datasets_refined_iterative(
+#         truncated_datasets: MutableMapping[str, Dataset],
+#         marker: Marker,
+#         alignments: MutableMapping[str, Alignment],
+#         apo_datatags: np.ndarray,
+#         structure_factors: StructureFactors,
+#         sample_rate: float,
+#         grid_size: int,
+#         grid_spacing: float,
+#         cutoff,
+# ) -> MutableMapping[str, np.ndarray]:
+#     samples: MutableMapping[str, np.ndarray] = {}
+#
+#     datasets_to_process = {dtag: dataset for dtag, dataset in truncated_datasets.items()}
+#
+#     truncated_datasets_length = len(truncated_datasets)
+#
+#     alignment_classes = {}
+#
+#     while len(samples) < truncated_datasets_length:
+#         print(f"\tGot {len(datasets_to_process)} datasets left to align")
+#         dtag_array = list(datasets_to_process.keys())
+#
+#         reference_dtag = dtag_array[0]
+#         alignment_classes[reference_dtag] = []
+#
+#         # reference_sample = sample_dataset(truncated_datasets[reference_dtag],
+#         #                                   alignments[reference_dtag][marker],
+#         #                                   marker,
+#         #                                   structure_factors,
+#         #                                   sample_rate,
+#         #                                   grid_size,
+#         #                                   grid_spacing,
+#         #                                   )
+#         reference_sample = sample_dataset(truncated_datasets[reference_dtag],
+#                                           alignments[reference_dtag][marker],
+#                                           marker,
+#                                           structure_factors,
+#                                           sample_rate,
+#                                           grid_size,
+#                                           grid_spacing,
+#                                           )
+#         arrays = joblib.Parallel(
+#             verbose=50,
+#             n_jobs=-1,
+#         )(
+#             joblib.delayed(sample_dataset_refined)(
+#                 datasets_to_process[dtag],
+#                 alignments[dtag][marker],
+#                 marker,
+#                 reference_sample,
+#                 structure_factors,
+#                 sample_rate,
+#                 grid_size,
+#                 grid_spacing,
+#             )
+#             for dtag
+#             in dtag_array
+#         )
+#
+#         for j, dtag in enumerate(dtag_array):
+#             rscc = arrays[j][0]
+#             array = arrays[j][1]
+#
+#             if rscc > cutoff:
+#                 samples[dtag] = array
+#                 alignment_classes[reference_dtag].append(dtag)
+#                 del datasets_to_process[dtag]
+#             else:
+#                 continue
+#
+#         print(
+#             (
+#                 "############################################\n"
+#                 f"# Aligned {len(alignment_classes[reference_dtag])} to reference sample: {reference_dtag}\n"
+#                 "############################################\n"
+#             )
+#         )
+#
+#     # samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
+#
+#     return samples
+
+
 def sample_datasets_refined_iterative(
         truncated_datasets: MutableMapping[str, Dataset],
         marker: Marker,
@@ -1045,6 +1155,7 @@ def sample_datasets_refined_iterative(
         grid_size: int,
         grid_spacing: float,
         cutoff,
+        reference_dataset
 ) -> MutableMapping[str, np.ndarray]:
     samples: MutableMapping[str, np.ndarray] = {}
 
@@ -1053,38 +1164,93 @@ def sample_datasets_refined_iterative(
     truncated_datasets_length = len(truncated_datasets)
 
     alignment_classes = {}
+    print(f"\tGot {len(datasets_to_process)} datasets left to align")
+    dtag_array = list(datasets_to_process.keys())
 
+    reference_dtag = reference_dataset.dtag
+
+    alignment_classes[reference_dtag] = []
+
+    initial_reference_sample = sample_dataset(truncated_datasets[reference_dtag],
+                                              alignments[reference_dtag][marker],
+                                              marker,
+                                              structure_factors,
+                                              sample_rate,
+                                              grid_size,
+                                              grid_spacing,
+                                              )
+    arrays = joblib.Parallel(
+        verbose=50,
+        n_jobs=-1, )(
+        joblib.delayed(sample_dataset_refined)(
+            datasets_to_process[dtag],
+            alignments[dtag][marker],
+            marker,
+            initial_reference_sample,
+            structure_factors,
+            sample_rate,
+            grid_size,
+            grid_spacing,
+        )
+        for dtag
+        in dtag_array
+    )
+
+    initial_reference_samples = {}
+    initial_rsccs = {}
+
+    for j, dtag in enumerate(dtag_array):
+        rscc = arrays[j][0]
+        array = arrays[j][1]
+        initial_reference_samples[dtag] = array
+        initial_rsccs[dtag] = rscc
+
+        if rscc > cutoff:
+            samples[dtag] = array
+            alignment_classes[reference_dtag].append(dtag)
+
+            del datasets_to_process[dtag]
+        else:
+            continue
+
+    print(
+        (
+            "############################################\n"
+            f"# Aligned {len(alignment_classes[reference_dtag])} to reference sample: {reference_dtag}\n"
+            "############################################\n"
+        )
+    )
+
+    # Iterate over the remaining datasets that could not be aligned, choosing a random dataset whose optimal
+    # alignment to the reference is the new reference for alignment
     while len(samples) < truncated_datasets_length:
-        print(f"\tGot {len(datasets_to_process)} datasets left to align")
         dtag_array = list(datasets_to_process.keys())
 
-        reference_dtag = dtag_array[0]
+        # reference_dtag = dtag_array[0]
+        reference_dtag = max(dtag_array, key=lambda _dtag: initial_rsccs[_dtag])
+        print(f"Reference dtag: {reference_dtag}: Rscc: {initial_rsccs[reference_dtag]}")
 
-        # reference_sample = sample_dataset(truncated_datasets[reference_dtag],
-        #                                   alignments[reference_dtag][marker],
-        #                                   marker,
-        #                                   structure_factors,
-        #                                   sample_rate,
-        #                                   grid_size,
-        #                                   grid_spacing,
-        #                                   )
-        reference_sample = sample_dataset(truncated_datasets[reference_dtag],
-                                          alignments[reference_dtag][marker],
-                                          marker,
-                                          structure_factors,
-                                          sample_rate,
-                                          grid_size,
-                                          grid_spacing,
-                                          )
+
+        alignment_classes[reference_dtag] = []
+
+        # initial_reference_sample = initial_reference_samples[reference_dtag]
+        initial_reference_sample = sample_dataset(truncated_datasets[reference_dtag],
+                                                  alignments[reference_dtag][marker],
+                                                  marker,
+                                                  structure_factors,
+                                                  sample_rate,
+                                                  grid_size,
+                                                  grid_spacing,
+                                                  )
+
         arrays = joblib.Parallel(
             verbose=50,
-            n_jobs=-1,
-        )(
+            n_jobs=-1, )(
             joblib.delayed(sample_dataset_refined)(
                 datasets_to_process[dtag],
                 alignments[dtag][marker],
                 marker,
-                reference_sample,
+                initial_reference_sample,
                 structure_factors,
                 sample_rate,
                 grid_size,
@@ -1095,18 +1261,28 @@ def sample_datasets_refined_iterative(
         )
 
         for j, dtag in enumerate(dtag_array):
-            alignment_classes[dtag] = []
             rscc = arrays[j][0]
             array = arrays[j][1]
 
             if rscc > cutoff:
                 samples[dtag] = array
-                alignment_classes[dtag].append(array)
+                alignment_classes[reference_dtag].append(dtag)
                 del datasets_to_process[dtag]
             else:
                 continue
 
+        print(
+            (
+                "############################################\n"
+                f"# Aligned {len(alignment_classes[reference_dtag])} to reference sample: {reference_dtag}\n"
+                "############################################\n"
+            )
+        )
+
     # samples = {dtag: result for dtag, result in zip(truncated_datasets, arrays)}
+
+    for dtag, rscc in initial_rsccs.items():
+        print(f"\t{dtag} : {rscc}")
 
     return samples
 
@@ -1175,7 +1351,7 @@ def get_reference(datasets: MutableMapping[str, Dataset], reference_dtag: Option
     # Otherwise, select highest resolution structure
     else:
         reference_dtag = min(
-            apo_dtags,
+            [dtag for dtag in datasets if dtag in apo_dtags],
             key=lambda dataset_dtag: datasets[dataset_dtag].reflections.resolution_high(),
         )
 
@@ -1558,9 +1734,10 @@ def save_json(clustering_dict, path):
 def save_dendrogram_plot(linkage,
                          labels,
                          dendrogram_plot_file,
+                         threshold=0.3
                          ):
     fig, ax = plt.subplots(figsize=(0.2 * len(labels), 40))
-    dn = spc.hierarchy.dendrogram(linkage, ax=ax, labels=labels, leaf_font_size=10)
+    dn = spc.hierarchy.dendrogram(linkage, ax=ax, labels=labels, leaf_font_size=10, color_threshold=threshold)
     fig.savefig(str(dendrogram_plot_file))
     fig.clear()
     plt.close(fig)
@@ -1643,7 +1820,7 @@ def bokeh_scatter_plot(embedding, labels, know_apos, plot_file):
             x=embedding[:, 0].tolist(),
             y=embedding[:, 1].tolist(),
             dtag=labels,
-            apo=[1 if label in know_apos else 0 for label in labels]
+            apo=["green" if label in know_apos else "pink" for label in labels]
         ))
 
     TOOLTIPS = [
@@ -1655,9 +1832,9 @@ def bokeh_scatter_plot(embedding, labels, know_apos, plot_file):
 
     p = figure(plot_width=1200, plot_height=1200, tooltips=TOOLTIPS,
                title="Mouse over the dots",
-               color=["green" if label in know_apos else "pink" for label in labels])
+               )
 
-    p.circle('x', 'y', size=15, source=source)
+    p.circle('x', 'y', size=15, source=source, color="apo")
 
     show(p)
 
@@ -1758,6 +1935,27 @@ def filter_sfs(dataset: Dataset, structure_factor: StructureFactors):
     columns = dataset.reflections.column_labels()
 
     if structure_factor.f in columns:
+        return True
+
+    else:
+        return False
+
+
+def filter_rfree(dataset: Dataset, rfree_limit: float):
+    print(dataset.dtag)
+    rfree = float(dataset.structure.make_mmcif_document()[0].find_loop("_refine.ls_R_factor_R_free")[0])
+
+    if rfree < rfree_limit:
+        return True
+
+    else:
+        return False
+
+
+def filter_res(dataset: Dataset, res_high_limit: float):
+    res = dataset.reflections.resolution_high()
+
+    if res < res_high_limit:
         return True
 
     else:
@@ -2057,7 +2255,6 @@ def make_mean_map_local_origin(
 
     sample_grid.symmetrize_max()
 
-
     # return
     return sample_grid
 
@@ -2085,7 +2282,7 @@ def output_mean_maps_local(sample_arrays, dataset_clusters, reference_dataset, m
             mean_map,
         )
 
-        mean_map_origin: gemmi.FloatGrid = make_mean_map_local(
+        mean_map_origin: gemmi.FloatGrid = make_mean_map_local_origin(
             [sample_arrays[dtag] for dtag in cluster_dtags[cluster_num]],
             reference_dataset,
             marker,
@@ -2096,3 +2293,68 @@ def output_mean_maps_local(sample_arrays, dataset_clusters, reference_dataset, m
             out_dir / f"mean_map_{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}_{cluster_num}_origin.ccp4",
             mean_map_origin,
         )
+
+
+def get_gaussian_clusterings(sample_arrays):
+    feature_matrix = np.vstack([sample.flatten().reshape((1, -1)) for dtag, sample in sample_arrays.items()])
+    print(f"\t\tFeature matrix shape is: {feature_matrix.shape}")
+
+    results = {}
+
+    for j in range(1, 20):
+        print(f"\t\t\tEstimating gaussians for n_components: {j}")
+        mixture = GaussianMixture(n_components=j, covariance_type="spherical")
+
+        start = time.time()
+        labels = mixture.fit_predict(feature_matrix)
+        finish = time.time()
+        print("\t\t\t\tCompleyed in: {}".format(finish - start))
+
+        aic = mixture.aic(feature_matrix)
+
+        results[j] = {"labels": labels, "aic": aic}
+
+    best_result_j = min(results, key=lambda n_components: results[n_components]["aic"])
+
+    print("\t\tBest model by aic is: {} with aic: {}".format(best_result_j, results[best_result_j]["aic"]))
+
+    return results[best_result_j]["labels"]
+
+
+def bokeh_scatter_plot_colours_int(embedding, labels, colours_int, plot_file):
+    from bokeh.palettes import Spectral6, Turbo256, viridis
+
+    output_file(str(plot_file))
+
+    pal = viridis(max(colours_int) + 1)
+    print(len(pal))
+    source = ColumnDataSource(
+        data=dict(
+            x=embedding[:, 0].tolist(),
+            y=embedding[:, 1].tolist(),
+            dtag=labels,
+            apo=[pal[colour_label] for colour_label in colours_int]
+        ))
+
+    TOOLTIPS = [
+        ("index", "$index"),
+        ("(x,y)", "($x, $y)"),
+        ("dtag", "@dtag"),
+        ("apo", "@apo"),
+    ]
+
+    p = figure(plot_width=1200, plot_height=1200, tooltips=TOOLTIPS,
+               title="Mouse over the dots",
+               )
+
+    p.circle('x', 'y', size=15, source=source, color="apo")
+
+    show(p)
+
+
+def save_plot_umap_bokeh_labeled(correlation_matrix,
+                                 colours_int,
+                                 dtags,
+                                 plot_file):
+    embedding = embed_umap_no_pca(correlation_matrix)
+    bokeh_scatter_plot_colours_int(embedding, dtags, colours_int, plot_file)

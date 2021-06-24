@@ -45,7 +45,7 @@ def structure_to_path(structure: gemmi.Structure, out_dir: Path = Path("/tmp/pan
         out_path = out_dir / f"{token}.pdb"
 
         if not out_path.exists():
-            structure.write_minimal_pdb(str(out_path))
+            structure.write_pdb(str(out_path))
 
         return out_path
 

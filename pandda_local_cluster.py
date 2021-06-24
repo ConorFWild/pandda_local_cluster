@@ -44,9 +44,14 @@ from pandda_local_cluster.functions import (
     save_distance_matrix,
     save_dtag_array,
     filter_sfs,
+    filter_rfree,
+    filter_res,
     filter_structure,
-    output_mean_maps_local
+    output_mean_maps_local,
+get_gaussian_clusterings,
+save_plot_umap_bokeh_labeled
 )
+
 
 
 def run_local_cluster(
@@ -113,10 +118,7 @@ def run_local_cluster(
         if params.debug:
             print(f"Was given {len(known_apos)} known apos")
 
-    # Get a reference dataset against which to sample things
-    reference_dataset: Dataset = get_reference(datasets, reference_dtag, known_apos)
-    if params.debug:
-        print(f"Reference dataset for alignment is: {reference_dataset.dtag}")
+
 
     # Filter valid structure factors
     filtered_datasets_sfs = {
@@ -126,18 +128,42 @@ def run_local_cluster(
     }
     print(f"Filtered datasets on structure factors: {[dtag for dtag in datasets if not dtag in filtered_datasets_sfs]}")
 
-    # Filter invalid structures
-    filtered_datasets_struc = {
+    # Filter rfree
+    filtered_datasets_rfree = {
         dtag: filtered_datasets_sfs[dtag]
         for dtag
-        in filter(lambda dtag: filter_structure(filtered_datasets_sfs[dtag], reference_dataset), filtered_datasets_sfs)
+        in filter(lambda dtag: filter_rfree(filtered_datasets_sfs[dtag], 0.4), filtered_datasets_sfs)
     }
     print(
-        f"Filtered datasets on structure match: {[dtag for dtag in filtered_datasets_sfs if not dtag in filtered_datasets_struc]}")
+        f"Filtered datasets on rfree: {[dtag for dtag in filtered_datasets_sfs if not dtag in filtered_datasets_rfree]}")
+
+    # Filter resolution
+    filtered_datasets_res = {
+        dtag: filtered_datasets_rfree[dtag]
+        for dtag
+        in filter(lambda dtag: filter_res(filtered_datasets_rfree[dtag], 1.8),
+                  filtered_datasets_rfree)
+    }
+    print(
+        f"Filtered datasets on resolution: {[dtag for dtag in filtered_datasets_rfree if not dtag in filtered_datasets_res]}")
+
+    # Get a reference dataset against which to sample things
+    reference_dataset: Dataset = get_reference(filtered_datasets_res, reference_dtag, known_apos)
+    if params.debug:
+        print(f"Reference dataset for alignment is: {reference_dataset.dtag}")
+
+    # Filter invalid structures
+    filtered_datasets_struc = {
+        dtag: filtered_datasets_res[dtag]
+        for dtag
+        in filter(lambda dtag: filter_structure(filtered_datasets_res[dtag], reference_dataset), filtered_datasets_res)
+    }
+    print(
+        f"Filtered datasets on structure match: {[dtag for dtag in filtered_datasets_res if not dtag in filtered_datasets_struc]}")
 
     # B factor smooth the datasets
     smoothed_datasets: MutableMapping[str, Dataset] = smooth_datasets(
-        datasets,
+        filtered_datasets_struc,
         reference_dataset,
         params.structure_factors,
     )
@@ -153,10 +179,22 @@ def run_local_cluster(
 
     # Loop over the residues, sampling the local electron density
     marker_clusters = {}
-    for marker, marker_datasets in iterate_markers(datasets, markers, alignments):
+    for marker, marker_datasets in iterate_markers(filtered_datasets_struc, markers, alignments):
 
-        # if marker.resid.insertion != "29":
+        # if marker.resid.insertion != "110":
         #     continue
+
+        # if marker.resid.insertion != "1862":
+        #     continue
+
+
+        # if marker.resid.insertion != "1939":
+        #     continue
+
+        if marker.resid.insertion != "29":
+            continue
+
+
 
         print(f"Processing marker: {marker}")
         print(f"Got number of datasets: {len(marker_datasets)}")
@@ -222,23 +260,24 @@ def run_local_cluster(
             params.sample_rate,
             params.grid_size,
             params.grid_spacing,
-            0.7
+            params.local_cluster_cutoff,
+            reference_dataset
         )
         print(f"Got {len(sample_arrays)} samples")
 
         # Get the distance matrix
-        distance_matrix: np.ndarray = get_distance_matrix(sample_arrays)
+        correlation_matrix: np.ndarray = get_distance_matrix(sample_arrays)
         if params.debug:
-            print(f"First line of distance matrix: {distance_matrix[0, :]}")
-            print(f"Last line of distance matrix: {distance_matrix[-1, :]}")
+            print(f"First line of distance matrix: {correlation_matrix[0, :]}")
+            print(f"Last line of distance matrix: {correlation_matrix[-1, :]}")
 
         # Get the distance matrix linkage
-        linkage: np.ndarray = get_linkage_from_correlation_matrix(distance_matrix)
+        linkage: np.ndarray = get_linkage_from_correlation_matrix(correlation_matrix)
 
         # Cluster the available density
         dataset_clusters: np.ndarray = cluster_density(
             linkage,
-            params.local_cluster_cutoff,
+            1-params.local_cluster_cutoff,
         )
 
         # Output
@@ -248,9 +287,9 @@ def run_local_cluster(
                 sample_arrays, dataset_clusters, reference_dataset, marker, out_dir,
                 params.grid_size, params.grid_spacing, params.structure_factors, params.sample_rate
             )
-            exit()
+            # exit()
 
-        save_distance_matrix(distance_matrix,
+        save_distance_matrix(correlation_matrix,
                              out_dir / f"{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}.npy")
 
         save_dtag_array(np.array(list(sample_arrays.keys())),
@@ -260,16 +299,29 @@ def run_local_cluster(
         save_dendrogram_plot(linkage,
                              labels=[dtag for dtag in sample_arrays.keys()],
                              dendrogram_plot_file=out_dir / f"{marker.resid}_dendrogram.png",
+                             threshold=1-params.local_cluster_cutoff,
                              )
 
         save_hdbscan_dendrogram(
-            distance_matrix,
+            correlation_matrix,
             out_dir / f"{marker.resid}_hdbscan_dendrogram.png",
         )
 
         save_embed_plot(
-            distance_matrix,
+            correlation_matrix,
             out_dir / f"{marker.resid}_embed.png"
+        )
+
+        # Perform gaussian clustering
+        gaussian_clusterings = get_gaussian_clusterings(sample_arrays)
+
+        # Save embed umap bokeh coloured by clusters
+        save_plot_umap_bokeh_labeled(
+            correlation_matrix=correlation_matrix,
+            # colours_int=gaussian_clusterings,
+            colours_int=dataset_clusters,
+            dtags=[dtag for dtag in sample_arrays.keys()],
+            plot_file=out_dir / f"umap_{marker.resid.model}_{marker.resid.chain}_{marker.resid.insertion}.html",
         )
 
         # Store resullts
@@ -293,7 +345,7 @@ def run_local_cluster(
     print(global_distance_matrix[0, :])
     print(global_distance_matrix[-1, :])
 
-    time.sleep(60)
+    time.sleep(5)
 
     global_linkage: np.ndarray = get_linkage_from_correlation_matrix(global_distance_matrix)
     global_clusters: np.ndarray = cluster_density(
